@@ -1,0 +1,483 @@
+/* 全站唯一的一套设计 token。
+ *
+ * 两套命名并存不是历史包袱: 股票几页用 --ink2/--muted/--grid, 房价页用 --ink-2/--ink-3/--rule,
+ * 都是各自 CSS 里几十处引用。这里给同一个色值两个名字, 比改两百处引用便宜。
+ * 新代码统一用无连字符那套(--ink2/--muted/--grid/--border)。
+ *
+ * ECharts 的颜色也从这里读(见 theme.jsx 的 vars()): 换肤时图表 dispose 重建。 */
+:root {
+  color-scheme: light;
+  --page: #f5f5f3;
+  --paper: #f5f5f3;
+  --surface: #ffffff;
+  --ink: #1a1a19;
+  --ink2: #4a4a46;
+  --ink-2: #4a4a46;
+  --muted: #8a8880;
+  --ink-3: #8a8880;
+  --ink-4: #b3aca0;
+  --grid: #ececea;
+  --rule: #ececea;
+  --rule-soft: #f4f4f2;
+  --baseline: #d8d8d4;
+  --border: rgba(0, 0, 0, 0.1);
+  --rowline: rgba(0, 0, 0, 0.06);
+  --up: #d63b31; /* 涨·红 (A股惯例, 美股页也沿用) */
+  --down: #0e9c62; /* 跌·绿 */
+  --flat: #c4bdb0;
+  --blue: #2f74d0; /* 累计线 / 权重条 */
+  --avg: #b8862c; /* 分时均价线 */
+  --series-1: #2c5f7c; /* 房价: 新建商品住宅 */
+  --series-2: #c07a35; /* 房价: 二手住宅 */
+  --highlight: #f6efdd; /* 房价明细表定位行 */
+  --tip: #ffffff;
+  --tiplabel: #4a4a46; /* 十字线刻度标签底(文字恒白, 故要深) */
+
+  --sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --serif: "Songti SC", "Source Han Serif SC", "Noto Serif SC", Georgia, serif;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --paper: #0d0d0d;
+  --surface: #1a1a19;
+  --ink: #ffffff;
+  --ink2: #c3c2b7;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+  --ink-3: #898781;
+  --ink-4: #5c5a55;
+  --grid: #2c2c2a;
+  --rule: #2c2c2a;
+  --rule-soft: #232322;
+  --baseline: #383835;
+  --border: rgba(255, 255, 255, 0.1);
+  --rowline: rgba(255, 255, 255, 0.05);
+  --up: #e4534a;
+  --down: #16b070;
+  --flat: #6b665c;
+  --blue: #3987e5;
+  --avg: #d9a441;
+  --series-1: #4f97c4;
+  --series-2: #d9a441;
+  --highlight: #2e2a1e;
+  --tip: #111111;
+  --tiplabel: #333333;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 所有数字等宽, tooltip / 表格里不会左右跳动 */
+table,
+.kpi-value,
+.city-value,
+.kpi-val {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ========== 站点导航 ========== */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--page) 88%, transparent);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-in {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 9px 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav a {
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 9px;
+  white-space: nowrap;
+}
+.nav a:hover {
+  color: var(--ink2);
+}
+.nav a.on {
+  color: var(--ink);
+  background: var(--grid);
+}
+.nav .sp {
+  flex: 1;
+}
+@media (max-width: 680px) {
+  .nav-in {
+    padding: 7px 10px;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nav-in::-webkit-scrollbar {
+    display: none;
+  }
+  .nav a {
+    font-size: 12px;
+    padding: 5px 9px;
+  }
+}
+
+/* ========== 深浅色开关 ========== */
+.tgl {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--muted);
+  padding: 5px 7px;
+  line-height: 0;
+  cursor: pointer;
+}
+.tgl:hover {
+  color: var(--ink2);
+}
+/* 显示的是「点了会切到哪」: 浅色下显月亮 */
+.tgl .sun {
+  display: none;
+}
+:root[data-theme="dark"] .tgl .sun {
+  display: block;
+}
+:root[data-theme="dark"] .tgl .moon {
+  display: none;
+}
+
+/* ========== 股票三页共用的壳 ========== */
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 26px 20px 60px;
+}
+.wrap.narrow {
+  max-width: 940px;
+}
+.wrap > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wrap h1 {
+  font-size: 20px;
+  font-weight: 650;
+  margin: 0;
+  letter-spacing: 0.2px;
+}
+.sub {
+  color: var(--muted);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 18px 0 24px;
+}
+@media (max-width: 680px) {
+  .tiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tile .k {
+  color: var(--muted);
+  font-size: 12px;
+}
+.tile .v {
+  font-size: 24px;
+  font-weight: 640;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.tile .u {
+  color: var(--ink2);
+  font-size: 12px;
+}
+.tile .sep {
+  color: var(--muted);
+  font-weight: 400;
+  margin: 0 5px;
+}
+.pos {
+  color: var(--up);
+}
+.neg {
+  color: var(--down);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 12px 8px;
+  margin-bottom: 18px;
+}
+.card h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 2px 6px 0;
+  color: var(--ink2);
+}
+/* 分隔点走 ::before, 好让窄屏副标题换行时不留个孤零零的点在行首 */
+.card h2 span {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 12px;
+}
+.card h2 span.dot::before {
+  content: "· ";
+}
+.miss {
+  padding: 40px;
+  text-align: center;
+  color: var(--muted);
+}
+code {
+  background: var(--grid);
+  padding: 2px 6px;
+  border-radius: 5px;
+  color: var(--ink2);
+}
+.stale {
+  opacity: 0.55;
+}
+
+/* ========== 表格(纳指QDII / 美股) ========== */
+.tWrap {
+  overflow-x: auto;
+}
+table.dt {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.dt th,
+.dt td {
+  padding: 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+/* 首列钉在左侧: 横向滚动时不跟走。sticky 单元格必须自带不透明底, 否则数字从下面透出来 */
+.dt th:first-child,
+.dt td:first-child {
+  text-align: left;
+  padding-left: 6px;
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  box-shadow: 1px 0 0 var(--border);
+}
+.dt thead th {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.dt th[data-k] {
+  cursor: pointer;
+  user-select: none;
+}
+.dt th[data-k]:hover {
+  color: var(--ink2);
+}
+.dt tbody tr {
+  border-bottom: 1px solid var(--rowline);
+}
+.dt tfoot td {
+  color: var(--ink2);
+  font-weight: 600;
+  border-top: 1px solid var(--border);
+}
+.dt td.nm {
+  color: var(--ink2);
+}
+.dt .cd {
+  color: var(--muted);
+  font-size: 11px;
+  margin-left: 6px;
+}
+.dt .rk {
+  color: var(--muted);
+  font-size: 11px;
+  margin-right: 8px;
+  display: inline-block;
+  min-width: 12px;
+}
+/* 高亮行(自选 / 指数)的底色是半透明, 首列 sticky 要叠在 surface 上凑成不透明 */
+.dt tbody tr.hl {
+  background: rgba(47, 116, 208, 0.1);
+}
+.dt tbody tr.hl td:first-child {
+  background: linear-gradient(rgba(47, 116, 208, 0.1), rgba(47, 116, 208, 0.1)), var(--surface);
+}
+.dt tbody tr.idx td {
+  font-weight: 640;
+}
+@media (max-width: 680px) {
+  .dt th,
+  .dt td {
+    padding: 6px;
+  }
+}
+
+/* ========== 图表容器高度 ========== */
+.chart.main { height: 360px; }
+.chart.cum  { height: 240px; }
+.chart.idx  { height: 440px; }
+.chart.kline { height: 380px; }
+.chart.intraday { height: 300px; }
+@media (max-width: 680px) {
+  .chart.main { height: 280px; }
+  .chart.cum  { height: 200px; }
+  .chart.idx  { height: 400px; }
+  .chart.kline { height: 300px; }
+  .chart.intraday { height: 260px; }
+}
+
+/* ========== 国债活跃券卡片(纯 HTML, 无图) ========== */
+.bond {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 10px 6px 8px;
+}
+.bond .b { display: flex; flex-direction: column; gap: 5px; }
+.bond .t { color: var(--muted); font-size: 12px; }
+.bond .y { font-size: 24px; font-weight: 640; font-variant-numeric: tabular-nums; line-height: 1; }
+.bond .y small { font-size: 13px; font-weight: 500; margin-left: 8px; }
+.bond .y i { font-style: normal; margin-left: 8px; color: var(--muted); }
+.bond .m { color: var(--ink2); font-size: 12px; }
+.bond .m i { color: var(--muted); font-style: normal; margin-left: 6px; }
+
+@media (max-width: 680px) {
+  .wrap { padding: 16px 12px 40px; }
+  .wrap h1 { font-size: 17px; }
+  /* 窄屏「更新于…」默认被挤到第二行: 缩字号腾出空间, 让它回到标题右边。
+     header 的 flex-wrap 保留 —— 320 这种极窄屏放不下时宁可换行, 也别横向溢出 */
+  .sub { font-size: 10px; white-space: nowrap; gap: 6px; }  /* 实测: 10px 起 360 屏才够一行 */
+  .tile { padding: 12px; }
+  .tile .v { font-size: 19px; }
+  .card { padding: 12px 6px 6px; }
+  .card h2 span.dot { display: block; margin-top: 3px; }  /* 副标题另起一行, 否则从句子中间折断 */
+  .card h2 span.dot::before { content: none; }
+  /* 两列各占半屏, 券名+剩余+成交 一行塞不下 -> 明细另起一行, 字号跟统计瓦片对齐 */
+  .bond { gap: 10px; padding: 8px 6px 6px; }
+  .bond .y { font-size: 19px; }
+  .bond .y small { font-size: 12px; margin-left: 6px; }
+  .bond .m i { display: block; margin-left: 0; margin-top: 2px; }
+}
+
+/* ========== pane 切换 tab(纳指QDII 页) ========== */
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin: 18px 0 -4px;
+}
+.tabs button {
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+.tabs button:hover { color: var(--ink2); }
+.tabs button.on { color: var(--ink); background: var(--grid); border-color: var(--baseline); }
+
+/* ========== hero 数字(NQ 隔夜 / 159696 分时) ========== */
+.hero {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 6px 0;
+}
+.hero .v { font-size: 34px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1; }
+.hero .u { color: var(--muted); font-size: 12px; }
+@media (max-width: 680px) { .hero .v { font-size: 28px; } }
+
+.card.nq h2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.card.nq h2 .t { color: var(--ink2); font-size: 14px; font-weight: 600; }
+.nqReload {
+  display: inline-flex; align-items: center; justify-content: center; color: var(--muted);
+  background: none; border: none; padding: 3px; margin-left: 2px; cursor: pointer; vertical-align: middle;
+}
+.nqReload:hover { color: var(--ink2); }
+.nqReload:disabled { cursor: default; }
+.nqReload.spin svg { animation: nqspin 0.8s linear infinite; }
+@keyframes nqspin { to { transform: rotate(360deg); } }
+
+/* ========== 美股页表格的额外零件 ========== */
+/* 同比: 挂在金额下面的第二行, 小一号 */
+.dt .yo { display: block; font-size: 11px; margin-top: 2px; }
+/* 双份额(谷歌 A/C)的涨跌幅: 两行同字号, 块内左对齐让 A/C 前缀对齐, 块本身仍随列靠右 */
+.dt .ac { display: inline-block; text-align: left; }
+.dt .ac span { display: block; }
+.dt .ac span + span { margin-top: 2px; }
+/* 权重条: 纯 CSS, 宽度按最大值归一, 不值得为它上图表库 */
+.dt td.bar { width: 55%; min-width: 120px; }
+/* min-width: 尾部行业只有 0.2%, 归一后宽度不足 1px 会整条看不见 */
+.dt td.bar i { display: block; height: 8px; min-width: 3px; border-radius: 4px; background: var(--blue); }
+/* 可展开行(行业表里的科技): 子行缩进 + 默认收起 */
+.dt tr.exp { cursor: pointer; user-select: none; }
+.dt tr.exp:hover td { color: var(--ink); }
+/* 箭头用 CSS 三角: ▸ 这类字形各系统粗细差太多, 小字号下几乎看不见 */
+.dt .ar {
+  display: inline-block; width: 0; height: 0; margin-right: 7px;
+  vertical-align: middle; margin-bottom: 2px;  /* 中文字比 CSS 的 middle 基准高一点, 抬 2px 才真居中 */
+  border-left: 5px solid var(--ink2);
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  transition: transform 0.15s;
+}
+.dt tbody.open .ar { transform: rotate(90deg); }
+.dt tr.sub { display: none; }
+.dt tbody.open tr.sub { display: table-row; }
+.dt tr.sub td { color: var(--muted); font-size: 12px; }
+.dt tr.sub td:first-child { padding-left: 24px; }
+.dt tr.sub td.bar i { opacity: 0.5; }

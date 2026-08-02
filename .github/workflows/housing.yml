@@ -1,0 +1,54 @@
+name: housing-data
+
+on:
+  # 统计局约每月 15 日起发布上月数据，偶有延迟。15-25 日每天跑一次，
+  # 抓取是幂等的，没有新数据就不提交，所以多跑几天只是自愈，不会产生噪音。
+  schedule:
+    - cron: "0 4 15-25 * *" # UTC 04:00 = 北京时间 12:00
+  workflow_dispatch:
+
+permissions:
+  contents: write # 提交新数据
+  actions: write # 触发 deploy.yml（GITHUB_TOKEN 推的 commit 不会自动触发其他 workflow）
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - run: pip install requests beautifulsoup4 lxml
+
+      - name: 抓取数据
+        run: |
+          # 12 月数据标题写「上一年12月」却在次年 1 月发布，只抓当年会漏掉
+          if [ "$(date +%-m)" -le 2 ]; then
+            python scrape_housing_data.py --year "$(($(date +%Y) - 1))"
+          fi
+          python scrape_housing_data.py --year "$(date +%Y)"
+
+      - name: parser 自检
+        run: python test_parse.py
+
+      - name: 生成前端数据
+        run: python generate_js_data.py
+
+      - name: 检查是否有新数据
+        id: diff
+        run: git diff --quiet || echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: 提交并触发部署
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "data: 自动更新 70 城房价数据"
+          git push
+          gh workflow run deploy.yml

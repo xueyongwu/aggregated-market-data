@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.vite/
+.qoder/
+node_modules/
+dist/
+
+# cache/ 只入库 CI 增量真正依赖的那几份, 其余(日志、临时图)不进 git。
+# 新增缓存文件要同时改这里和 workflow 的 git add。
+cache/*
+!cache/daily_pctchg.parquet
+!cache/intraday_159696_1min.parquet
+!cache/nq_min.parquet
+!cache/st_codes.json

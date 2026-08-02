@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A股全市场涨跌中位数、纳指QDII 场内溢价、美股纳指100 与加密行情、70 城房价环比趋势，四块看板合一。" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <link rel="apple-touch-icon" href="apple-touch-icon-index.png" />
+    <title>市场数据看板</title>
+    <!-- 主题在首帧前定下来, 否则深色用户会先闪一下浅色 -->
+    <script>
+      if (localStorage.theme === "dark") document.documentElement.dataset.theme = "dark";
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

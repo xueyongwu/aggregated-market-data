@@ -1,0 +1,44 @@
+name: daily-update
+
+on:
+  schedule:
+    - cron: "10 7 * * 1-5"  # UTC 07:10 = 北京 15:10, 收盘后 10 分钟; 腾讯快照即时可用
+    - cron: "0 10 * * 1-5"  # UTC 10:00 = 北京 18:00, 兜底: 15:10 若落到 baostock 回退分支则当时无数据
+  workflow_dispatch:          # 手动触发
+
+permissions:
+  contents: write
+  actions: write  # 触发 deploy.yml(GITHUB_TOKEN 推的 commit 不会自动触发其他 workflow)
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install baostock pandas pyarrow akshare requests  # requests 是腾讯快照主源用的, 别靠 akshare 传递依赖
+      - run: python median_trend.py --update
+      - run: python intraday_cache.py 159696
+        continue-on-error: true  # 新浪接口偶发失败不阻断中位数更新
+      - run: python index_perf.py
+        continue-on-error: true  # 指数源(新浪/中证/同花顺)偶发失败不阻断, 页面用旧数据
+      - run: python nq_overnight.py
+        continue-on-error: true  # 新浪外盘接口偶发失败不阻断, 页面用旧数据
+      - run: python bond_rate.py
+        continue-on-error: true  # 中国货币网偶发失败不阻断, 页面用旧数据(卡片自带成交时间戳)
+      - name: commit & push
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app/src/data/median_data.js app/src/data/etf_data.js app/src/data/idx_data.js \
+                  app/src/data/nq_data.js app/src/data/bond_data.js \
+                  cache/daily_pctchg.parquet cache/intraday_159696_1min.parquet cache/nq_min.parquet cache/st_codes.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: daily data update $(date -u +%F)"
+          git pull --rebase
+          git push
+          gh workflow run deploy.yml

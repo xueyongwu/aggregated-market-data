@@ -1,0 +1,161 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## 项目概览
+
+四块看板合并成的一个单页应用：A股全市场涨跌中位数、纳指QDII 场内溢价、美股纳指100 + 加密、70城房价环比。
+由 `stock-analysis` 和 `housing-price-trends` 两个仓库整合而来。
+
+数据管道形状统一：**Python 抓取脚本 → `app/src/data/*.js`（ES module）→ React 页面**。
+抓取脚本平铺在仓库根目录（两边文件名无冲突），前端在 `app/`。
+
+```
+median_trend.py     baostock/腾讯快照 → cache/daily_pctchg.parquet → median_data.js → AStockPage
+index_perf.py       腾讯/新浪/中证/同花顺 ──────────────────────→ idx_data.js    → AStockPage
+bond_rate.py        中国货币网 ────────────────────────────────→ bond_data.js   → AStockPage
+intraday_cache.py   新浪 1min bar → cache/intraday_*.parquet ──→ etf_data.js    → EtfPage
+nq_overnight.py     新浪外盘 NQ  → cache/nq_min.parquet ───────→ nq_data.js     → EtfPage
+us_perf.py          腾讯美股/Kraken/纳斯达克/东财 ─────────────→ us_data.js     → UsPage
+scrape_housing_data.py 统计局 → data/70城房价.json + data/raw/  ┐
+generate_js_data.py ──────────────────────────────────────────┴→ housingData.generated.js → HousingPage
+```
+
+## 常用命令
+
+```bash
+source .venv/bin/activate          # Python 3.12+，依赖见 requirements.txt
+./update.sh                        # 本地跑全部抓取(all / stock / housing 三档)
+
+# A股 / ETF / 指数 / 债 / NQ / 美股
+python median_trend.py             # 有缓存则直接导出; 无缓存全量拉(~10-20分钟)
+python median_trend.py --update    # 收盘后增量: 腾讯批量快照拉当日(~1.5s)，缺口时回退 baostock 窗口
+python median_trend.py --refresh   # 删缓存全量重拉
+python intraday_cache.py 159696    # ETF 1min bar 累积 + 导出日K/分时
+python index_perf.py               # 13 个宽基/特色指数今年以来涨跌幅
+python bond_rate.py                # 10Y/30Y 国债活跃券收益率
+python nq_overnight.py             # 纳指期货隔夜涨跌 + 分时
+python us_perf.py                  # 纳指100+七巨头+权重股+财报+加密
+python intraday_etf.py 159696 5    # 独立脚本: ETF 日内时段分析(新浪5min bar)
+
+# 房价
+python scrape_housing_data.py --year 2026   # 抓某年（默认 2026）
+python scrape_housing_data.py --all         # 抓全部年份
+python scrape_housing_data.py --reparse     # 离线重解析 data/raw/，零网络请求
+python scrape_history.py                    # 批量补 2021-2024 历史数据
+python generate_js_data.py                  # JSON → 前端 JS 数据
+
+# 离线自检(全部不联网)
+python test_tencent_parse.py       # 快照解析 + baostock 降级
+python test_nq_overnight.py        # NQ 隔夜窗口逻辑(合成 bar)
+python test_bond_rate.py           # 活跃券选取(合成成交行)
+python test_us_perf.py             # 月/年基准选取 + 财报解析(合成日线)
+python test_parse.py               # 房价 parser 回归
+
+# 前端
+cd app && pnpm dev      # 开发服务器
+cd app && pnpm build    # 构建
+cd app && pnpm lint     # eslint(当前零 error，别放宽)
+```
+
+改完房价 parser 的标准闭环：`--reparse` → `test_parse.py` → `generate_js_data.py`。不用重新联网抓。
+
+## 整合带来的约束（改这几处前先读）
+
+**`*_data.js` 是 Vite 源文件，不是页面直接引的 `<script>`。** 格式是 `export const X = {...};`，
+写在 `app/src/data/` 下（路径统一走 `paths.py` 的 `WEB_DATA`）。三条连带影响：
+1. **数据变了必须重新构建才上线** —— 所以四条抓取 workflow 提交完都显式 `gh workflow run deploy.yml`，
+   GITHUB_TOKEN 推的 commit 不会自动触发别的 workflow，少这一步页面永远是旧的。
+2. `us_perf.py` / `index_perf.py` 的降级读回（`last()` / `last_good()`）按 `t.index("=")`…`t.rindex(";")`
+   切自己上次的输出，`export const X = ` 照样命中第一个 `=`，没改这两个函数。**别在文件开头加带 `=` 或 `;` 的注释。**
+3. `chrome-ext/sw.js` 的 `jsonIn()` 按首尾花括号切，同样不受影响，但 URL 已指到
+   `raw.githubusercontent.com/.../app/src/data/nq_data.js`，换目录要同步改。
+
+**深浅两套皮是全站的，图表配色必须在 effect 里现读。** ECharts 的颜色在 `setOption` 时就烤进去了，
+换肤只能 dispose 重建 —— 所以每个建图的 `useEffect` 都把 `theme` 放进依赖数组，用 `theme.jsx` 的
+`vars()` / `chartTheme.js` 的 `chartColors()` 现读 CSS 变量。写死色值的图表换肤后不会变。
+
+**`theme.css` 里同一个色值挂了两套变量名**（`--ink2` 和 `--ink-2`、`--grid` 和 `--rule`）：
+股票三页和房价页各自的 CSS 里有几十处引用，给别名比改两百处引用便宜。新代码统一用无连字符那套。
+
+**`housing.css` 的重置只能落在 `.page` 里。** 它原来是 `* { margin:0; padding:0 }` + `body{...}`，
+合并成单页应用后这份 CSS 全局加载，落到 `*` 上会把股票三页的间距一起清掉。
+
+**echarts 按需引入**：从 `app/src/echarts.js` 导入，不要 `import * as echarts from "echarts"`（全量约 1MB）。
+用到新的图表类型或组件时，必须先在 `echarts.use([...])` 里注册 —— 漏注册时 echarts **不报错**，
+而是静默不渲染那部分。「option 写了但没效果」先查这里。
+
+**路由是 hash（`#/a`、`#/etf`、`#/us`、`#/housing`）**：GitHub Pages 纯静态托管，history 路由刷新会 404。
+`app/vite.config.js` 的 `base` 是 `/aggregated-market-data/`，换托管方式要一起改。
+
+**页面按 `lazy()` 切包**：每页各自 import 自己那份数据（etf 88KB、房价 70KB…），静态引入会全挤进首屏 chunk。
+
+## A股 / ETF / 美股侧的坑
+
+- **CI 时区是 UTC**：`update.yml` 每个工作日跑两次 `--update` 并提交数据——UTC 07:10（北京 15:10，收盘后 10 分钟，腾讯快照即时可用）为主，UTC 10:00（北京 18:00）兜底（万一 15:10 落到 baostock 回退分支，那时 baostock 当日数据还没出）。任何面向展示的时间必须用 `pd.Timestamp.now(tz="Asia/Shanghai")`，裸 `now()` 在 CI 里是零时区。
+- **`--update` 主源是腾讯批量快照**（`qt.gtimg.cn/q=` 逗号拼代码，每请求实测上限 900 只、取 800，全市场 7 请求 ~1.5s；字段 `[6]`成交量 `[30]`时间戳 `[32]`涨跌幅%，GBK 编码）。三条硬约束：① 停牌股返回 `pct=0.00` 而非空，必须按 `成交量>0` 剔，否则中位数被 0 拉偏；② 校验 `[30]` 时间戳日期等于目标日，防隔日跑写进陈旧价；③ **未收盘不落库**——盘中快照会被当成收盘价写死，次日 `--update` 只取新一天不回补。与 baostock qfq 口径实测 30 股 0 偏差。
+- **回退 baostock 的两种情形**：缓存缺了 end 之前的交易日（腾讯只给当日，补不了），或腾讯覆盖率 <90%/请求异常。此时才走原来的逐股窗口重拉（慢，且 **baostock 当日数据 ~17:30 后才可用**，cron 时间是配合这个定的）。腾讯 15:00 收盘即出，若哪天想把 cron 提前，得先确认不会落到回退分支。
+- **baostock 挂了也要能出数（`update_incremental()`）**：2026-07-22 实际发生过——baostock 全站不可用，login 卡 2 分多钟后抛错，而当时数据主源已经是腾讯，却被日历/代码表这两个辅助调用整条拖死。现在 login 失败即降级：代码表退回 parquet 里最近交易日那份（漏掉当天新上市的几只，5000 只样本的中位数无感），交易日判断交给腾讯快照自己——节假日快照返回上个交易日的陈旧时间戳，`parse_tencent_quotes` 的日期校验会全过滤掉，覆盖率 0 自然不写。此时**不再回退 baostock**（它本来就挂着），直接不更新，缺口留给它恢复后的兜底跑补。改这块前先跑 `test_tencent_parse.py`（覆盖正常/缺口/非交易日/降级出数/降级不写五条分支，全离线）。
+- **A股代码过滤**：`A_PREFIXES = ("sh.6", "sz.0", "sz.30")`。必须用 `sz.30` 而非 `sz.3`，否则 `sz.399*` 深证指数混入。不含北交所和B股。
+- **停牌剔除**：baostock 停牌日 `pctChg` 为空字符串，拉取时已过滤。
+- **非交易日保护**：`--update` 先走 `trading_days()`，节假日空跑不写脏数据（`is_trading_day()` 是它的单日包装，`intraday_cache.py` 在用）。
+- **baostock 会话**：`bs_session()` 是可嵌套的全局单例，login 握手要 1 秒多，别再在函数里各 login 一次；`--update` 全流程共用一次登录（29s → 15s）。
+- **ST 名单缓存**：`st_codes()` 结果写 `cache/st_codes.json` 存 7 天并入库。`query_stock_basic()` 拉全市场 5000+ 行是本脚本最慢的单次调用，而戴帽摘帽是低频事件。拉到空名单时抛错不覆盖旧缓存。
+- **写盘前体检**：`sanity_check()` 在写 `median_data.js` 前断言列长一致/日期升序无重复/无未来日期/中位数 `<15%`/上涨占比 `0~100`/最新日样本 `>4000`。失败即抛，CI 那步红掉就不会 commit——脏数据一旦入库，次日 `--update` 只取新一天不会回补。故意不查新鲜度：节假日本就没新数据，没写就没 commit。
+- **CI push 竞态**：workflow 里 push 前 `git pull --rebase`，改 workflow 时保留。
+- **`daily_pctchg.parquet` 滚动裁剪**：所有写盘走 `save_raw()`，只留 `date >= min(数据最新日所在年的 1 月 1 日, 最新日 − 30 天)`。上游最深只回看今年（导出）和最近 10 天（增量窗口 / baostock 降级时的代码表），更早的纯占体积——CI 每工作日全量重写提交一份，parquet 二进制不 delta 压缩。**保底 30 天是跨年防线**：单按今年切，元旦后缓存会被清空，增量窗口全判缺口退回 baostock 逐股慢路径（10-20 分钟），`nq_overnight.trading_days()` 也拿不到跨年的前一交易日。年份取自数据最新日而非 `now()`（CI 是 UTC）。改这块跑 `test_tencent_parse.py`（含年中切 / 跨年保底两条分支）。历史裁剪不缩 `.git`——旧 blob 还在，只对后续提交生效。
+- **159696 分时累积**：`intraday_cache.py` 每日 CI 拉新浪 1min bar（固定最新 1970 根 ≈9 交易日），按 `day` 去重合并进 parquet，逐日累加突破 1970 根限制。新浪偶发失败时 `continue-on-error` 不阻断中位数更新。合并后导出 `etf_data.js`（日K聚合 + 每日分时，剔除不足 200 根的边界日），`EtfPage` 渲染（点击K线看分时），CI 一并提交。
+- **指数 YTD 卡片**：`index_perf.py` 拉 13 个宽基/特色指数今年以来涨跌幅 → 导出 `idx_data.js`，`AStockPage` 排名条形图卡片渲染。源按序回退：腾讯 `fqkline`（10 个沪深指数，一次请求 400 根日线，与新浪逐日实测完全一致）→ 新浪 `stock_zh_index_daily`（akshare 封装随网站变，故降为备源；北证50 `bj899050` 腾讯只给 1 根，实际就靠它）；中证2000 `932000` 腾讯/新浪都没有，只能走中证官网 `stock_zh_index_hist_csindex`；微盘股 883418 / 可转债 883981 是同花顺自编指数，直连 `d.10jqka.com.cn/v4/line/bk_*` 接口带 ths.js 算的 v cookie。「拉到了但历史不覆盖上年末基准」也算失败并换源。全源失败则复用上次 `idx_data.js` 里那条并标 `stale:true`，前端半透明 + tooltip 注明——比静默少一根条可见。CI `continue-on-error` 单独跑。
+- **国债活跃券卡片（`AStockPage`）**：`bond_rate.py` 拉中国货币网现券成交（`chinamoney.com.cn/ags/ms/cm-u-md-bond/CbtPri`，akshare 的 `bond_spot_deal` 同源）→ 挑 10Y/30Y 活跃券 → `bond_data.js`，纯 HTML 卡片（无 ECharts）。约束：
+  - **`pageSize` 是摆设但不能填大**：填 15 照样回全市场 2998 行（~1.8MB，一次请求拿全）；填 100 直接 WAF `403`。要 UA，Referer 可有可无。
+  - **活跃券按「剩余期限桶 + 当日成交量最大」挑，绝不硬编码券代码**——每季换券。桶取 `termToMaturity`（`'9.79Y'`/`'172D'` 两种后缀）：10Y 收 9.0~10.5，30Y 收 28.0~30.5。实测 2026-07-31：10Y = `260010 26附息国债10` 1.7045%（612 亿），30Y = `2600004 26超长特别国债04` 2.1870%（1143 亿）。
+  - **筛国债靠券名不靠代码**：名字里有「国债」且不含「贴现」（贴现国债是零息短债，报价口径不同）。别只认「附息国债」——30Y 活跃券常年是「超长特别国债」，另有「注资/续作特别国债」。量最大那只是 `26国开05`（政金债），名字里没「国债」故天然排除。
+  - 收益率取 `dmiLatestContraRate`（最新成交），涨跌 `bpNum` 单位是 **bp 不是 %**，前端红=收益率上行（=债价下跌，副标题写明）。部分行只有净价没有收益率，`pick()` 跳过空值否则 `float("")` 炸。
+  - **前端 60s 轮询日内刷新**（`AStockPage` 的 `BondCard`）：带 `bondCode=260010` 单条只回 ~850B（不带就是全市场 2998 行 1.8MB，且服务端不认 `Accept-Encoding: gzip`，浏览器轮询扛不住），逗号拼多个代码回 0 行，所以两只券发两个请求。中国货币网回 `Access-Control-Allow-Origin: *`，浏览器直连即可——**但只能发 simple GET**，加任何自定义头都会触发 preflight，而该站 `OPTIONS` 一律 403。轮询只认券代码，**换券要等次日 CI 全量重挑**（季度级事件，隔夜够）。窗口限北京时间工作日 9:00~20:30（银行间 9:00-17:00 成交、20:00 定版），页面挂着过夜不空转。
+  - **不做 stale 机制**：每行自带 `showDate`（该券最后一笔成交时刻，前端直接显示），拉取失败就不写文件、页面留旧值，时间戳自己会露馅。
+  - 银行间 9:00-17:00 交易、20:00 定版，所以 `update.yml` 的两条 cron 里 **北京 18:00 那条才是准的**，15:10 那条写的是盘中快照（会被 18:00 覆盖）。`continue-on-error` 单独跑。改 `pick()` 跑 `test_bond_rate.py`（期限解析 / 量最大 / 排除政金债与桶外 / 空收益率 / 空桶抛错 / 收益率出格六条分支，全离线）。
+  - 其余源实测：东财 push2 无银行间债（`100.CN10Y` 全 `rc:100`，`searchapi` 搜 `250011`/`记账式` 全空）；新浪 `bond.finance.sina.com.cn/hq/gb/daily?symbol=CN10YT` 是活跃券口径日线（7/31 收 1.695，与本源差 1bp）可作备源，但配套的 `hq/gb/min` 只有 26 个点还断档，别当分时用；中债官方曲线 `ak.bond_china_yield()` 与 `ak.bond_zh_us_rate()`（7/31 中国10Y 1.7141）是插值曲线非活跃券，T+1 晚才出；国债期货 `hq.sinajs.cn/list=nf_T0,nf_TL0`（T=10Y、TL=30Y）实时但只有价格没有收益率。
+- **纳指期货隔夜卡片**：`nq_overnight.py` 拉新浪外盘 NQ 分时（`GlobalFuturesService.getGlobalFuturesMinLine`，只返回当前一个盘 ~1380 根 1min），按 dt 去重累积进 `cache/nq_min.parquet`，算「前一 A 股交易日 15:00 → 当日 9:30（北京）」涨跌幅，末尾附半程点（最后交易日 15:00 → 最新 bar，`partial:true`，前端标「截至」，次日被完整点替代）→ 导出 `nq_data.js`，`EtfPage` 顶部卡片渲染 hero 数字 + 分时曲线（无点位自动隐藏）。**`nq_data.js` 只含最新一个窗口**（`main()` 里 `overnight(...)[-1:]`）：分时曲线 `path` 本来就只挂在 `items[-1]` 上，前端拿到最后一条之后再没碰过更早的点，导出它们是纯死数据。`cache/nq_min.parquet` 同理按 `KEEP_DAYS=15` 滚动裁剪——窗口常态跨 1 天、跨周末 3 天、**国庆最长 8 天**（09-30 15:00 → 10-08 09:30），15 天是这条底线加 `nq_night.yml` 漏跑一两次的余量；不裁则每工作日 +~1300 行无上限增长，而两个 workflow 每天各重写提交一次整份 parquet。半程点盘中陈旧：`EtfPage` 客户端直连新浪 MinLine（`<script>` 注入绕 CORS，`stock2` 接口无防盗链）开页自刷 + 每 8s 自动轮询（base 固定只重算实时价）；过了 A 股 15:00 前端 `nqRebase()` 自己换窗口（拿实时 bar 里当日 15:00 价当新基准，同 py 端 `crossed` 逻辑），否则 15:00~18:00 曲线卡在旧窗口右边界，故不再需要开盘前 CI 跑（8:45 那个已删；但见下方 `nq_night.yml`，那个是补历史 bar 的，别混淆）。新浪外盘 NQ MinLine 实测延迟约 1 分钟（当前分钟 bar 形成中），非早前标注的 10 分钟；海外期货无免费逐笔源，1min bar 已是最快。交易日历取 `daily_pctchg.parquet` 日期列，CME 假日晨盘无 bar 自动跳过该日。CI `continue-on-error` 单独跑。注意 MinLine 每天 6:00 切新盘，「昨 18:00→今 5:00」的 bar 只能在切盘前抓：`nq_night.yml` cron UTC 21:00（北京 5:00）专补这段——NQ 每日 5:00 收盘，5:00~6:00 抓到的必是刚收完的完整整夜盘，天然容忍 Actions 常见的 10~50 分钟 cron 延迟（落地窗口有整整 1 小时）。少了它分时曲线会从上次抓取时刻断到次日 6:00（指标只需两端点，断的只是曲线）。前端 `nqClosed()` 把 CME 闭市时段（每日 5:00-6:00 维护、周六 6:00→周一 6:00）从类目轴剔除，不留空槽。东财 push2his 备选源已试过，对非浏览器请求限流断连，弃用。改 `overnight()` 前先跑 `test_nq_overnight.py`（合成 bar，覆盖完整点 / CME 假日跳过 / 过 15:00 换窗 / 周末不换窗四条分支）。
+- **美股卡片（`UsPage`）**：`us_perf.py` 拉腾讯美股日线（`usfqkline/get`，`usNDX` + 七巨头 `usAAPL.OQ` 之类，一次 400 根 ≈1.6 年，足够覆盖上年末+上月末两个基准）→ 算本周/本月/今年以来涨跌幅 → `us_data.js`，纯静态列表（无 ECharts）。两张表都走同一个 `useSort(rows, 默认列)`：每张表各持一份排序状态，全列可点，同列再点切升降，换列时数字降序、文字（标的）升序；行情表默认今年以来降序，权重表默认权重降序。三个口径共用 `pct(s, cut)`（cut 之前最后一根收盘为基准），本周 cut = 最新那根所在周的周一。第二张表是纳指100 前 11 大权重股：**权重取 QQQ 持仓占比**（纳斯达克官网和景顺官网对非浏览器请求一律 406，`stockanalysis.com/etf/qqq/holdings/` 是能直连的现成日频源），正则从 Next.js flight payload 里捞 `{no,n,s,as}`；解析不到 `top` 行即判页面结构变了。权重是独立源，失败不拖垮行情——沿用上次 `us_data.js` 里的 `holdings` 并标 `stale`（前端半透明 + 注明），没有旧值则整块隐藏卡片。GOOGL/GOOG 两个份额同时在榜是 QQQ 的真实持仓，不是重复——**`holdings(top=11)` 取 11 不取 10 就是为它俩**：两个份额各占一格，卡在 10 会挤掉一家真正的公司（当时被挤掉的是特斯拉）。**前端把这俩并成一行显示**（`UsPage` 的 `HoldCard` 里按 `code` 找 GOOGL/GOOG，权重相加、名次按合并后的权重重排 1..10、涨跌幅三列分 A/C 两行塞同一格、财报三列本就是同一份直接沿用 A 的），所以拉 11 只、显示 10 行，标题/tfoot 写「前 10 大」。改 `top=` 要同步这两处文案和重排逻辑。第三张表是行业权重（12 个 GICS 行业 + Other，权重条是纯 CSS `<i>` 宽度按最大值归一，`min-width:3px` 防尾部 0.2% 的条看不见）——**行业占比在同一份 payload 里白拿**（`sectors:[{n,w}]`，注意 `allocationChartData.sectors` 是另一套 `{name,y}` 键，别正则串了），不额外发请求，随权重表一起 stale/隐藏。行业表里「科技」那行可点开出子行业（不是第四张表，`tech_split()` 出数据，前端展开态是 `SectorCard` 里一个布尔——只有一行可展开；子行条与父行共用同一把标尺，长度可直接横向比）：**两个源的细分都不能用**——stockanalysis 只给 12 个一级行业，纳斯达克筛选器 `download=true` 虽有 `industry` 字段但口径乱（PANW 归"电脑外设"、ASML/LRCX 归"工业机械"），所以 `TECH_SUB` 是手工归类的 GICS 信息技术口径名单（谷歌/Meta 属通信服务、亚马逊/特斯拉属可选消费，都不在内）。只对解析到的前 25 大持仓归类，剩下的长尾用「板块总权重 − 已归类」兜成"其他科技"，合计恒等于上表的科技权重；换成分股不会算错，只是细分少一块。残差为负（归类里混进非科技股）时不写该行。改 `tech_split()` 或 `TECH_SUB` 跑 `test_us_perf.py`。权重表的涨跌幅三列走同一个 `metrics(腾讯代码)`（纳指成分必在纳斯达克上市，代码统一 `us{TICKER}.OQ`），`closes()` 上了 `lru_cache`——权重股与七巨头有 6 只重叠，不缓存就白拉 6 次。指数走 `data.day`、个股走 `data.qfqday`（前复权，拆股后才对得上）。**基准月份/年份取自最新那根 bar 的日期而非 `now()`**：美股按纽约交易日算，北京凌晨跑 CI 时 `now()` 已是次日，月初/年初会取错基准。单只失败即整体抛错不写文件（只有腾讯一个源，无处降级），页面保留上次的 `us_data.js`，CI `continue-on-error`。沿用站内红涨绿跌口径（非美股惯例）。改 `pct()` 前跑 `test_us_perf.py`。**cron 独立成 `us.yml`（`us-market`）**，不挂在 daily-update 上：① 美股 16:00 ET 收盘 = 北京 04:00(夏)/05:00(冬)，腾讯日线当天早上就有，daily-update 的第二条 cron（北京 18:00）对美股零增量——美股 21:30 才开盘，跑了只是把 `updated` 时间戳改一遍再提交一次；② 周末缺口只有单独排期才能补：美东周五盘北京周六 04:00 才收，挂在 1-5 的 cron 上要等到北京周一 15:10 才上页面，陈旧 2 天半。所以是 UTC 07:20（北京 15:20，错开 daily-update 的 07:10 避免两条 workflow 同时 push 撞车）+ UTC 22:00 周五（北京周六 06:00）。代价：不再有 18:00 那次免费重试，单次失败要等下一个工作日——所以所有 GET 走 `fetch()` 包 3 次重试（只重 HTTP 层，解析失败重试无意义），权重表里单只行情拉不到也只让那一行涨跌幅留空（前端渲染 `—`），不再整块回退 stale。`asof` 优先认 `lastUpdated:"..."`：裸 `date:"..."` 会命中全文第一个同名字段，上游哪天在前面加一个就静默取错日期。持仓行数 `< TECH_MIN_ROWS(20)` 时不出科技细分（`tech_split` 靠长尾兜"其他科技"，行数少了残差会悄悄变胖，表面正常实则失真）。
+- **财报三列（并在权重表里，公布日 / 营收·同比 / 净利·同比）**：`us_perf.py` 的 `earnings()` 出「最近一期单季营收/归母净利润 + 各自同比」（不新增文件，故 `us.yml` 的 `git add` 不用改）。曾经是独立的第四张卡片，因为和权重表数据几乎完全重合（只多出不在前十的七巨头成员）已撤掉；**`us_data.js` 里的 `earnings` 键留着不是死数据**，是纳斯达克全挂时补权重表那三列的降级缓存（`last(out, "earnings")`），删了降级就断。**两个源拼一行**：财季与公布日走纳斯达克 `api.nasdaq.com/api/company/{TICKER}/earnings-surprise`，营收/净利/同比走东财 `RPT_USF10_FN_INCOME`。约束：
+  - **`api.nasdaq.com` 能直连**——上一条里那句「纳斯达克官网 406」只对持仓/screener download 端点成立，财报接口普通 UA 就行，但**必须带 UA**，裸请求直接 `http=000` 断连（`fetch()` 已固定发 `Mozilla/5.0`）。留着这个源就为**公布日**：东财只给财季末日期，说不了哪天发的（AMD 3 月季 5/5 才公布）。
+  - **`parse_surprise()` 返回的 `eps`/`est` 不导出，只用来判重**：`(财季, 公布日)` 两元组认不出双重股权——同一天公布同一财季的两家公司太常见（AAPL 与 AMZN 都是 7/30）。GOOGL/GOOG 都在 QQQ 前十，是同一家公司的同一份财报，列两行是噪音（权重表里那两行是真实持仓，别一起去掉）。判重在拉利润表之前，省一次请求。
+  - **超预期这列做不了，别再试**：营收/净利没有免费的「当期一致预期」源——预期一发实际就被覆盖（stockanalysis 的 forecast payload 里 `lastDate` 之前全是实际值）。曾经上过 EPS 超预期，后来撤了；真要做得换付费源。另外**纳斯达克的 EPS 与 SEC/东财的 GAAP 摊薄 EPS 对不上**（AAPL FQ3 2026：1.91 vs 2.02），**绝不能拿别的源的 EPS 去减这里的 consensus**。
+  - **财务数不能用纳斯达克 `api/company/{T}/revenue`**：月份块标签与块内 EPS 日期整体错位（AAPL 的 `September (FYE)` 块里放的是 6 月季），且最新一期常年缺失（AAPL 6 月季、NVDA 4 月季当时都没有）。东财实测与 SEC XBRL 逐位一致（AAPL 109,417,000,000）还白送同比。**必须按 `REPORT_TYPE="单季报"` 过滤**：`DATE_TYPE_CODE` 不是固定值（同一家不同季给 003/006/008），而财年末那季同时存在一行「年报」，取错就把全年营收当成单季（NVDA 2026-01-25 两行并存）。`RPT_USF10_FN_MAININDEX` 不存在，别照抄网上的报表名。
+  - **不按 `ITEM_NAME` 过滤，整季拉回来自己挑**（`ITEMS` 映射，`主营收入`/`归属于普通股股东净利润`）：实测单季 25~31 个项目，`pageSize=60` 保证最新那季整块在第一页，比按名字发两次请求省事。两项缺一即抛错让整行留空——表里出现一半有一半没有的行更难看。
+  - **两源的财季对齐用 45 天容差而非同年同月**：13 周财季常越到下月初——AVGO 那季 5/3 结束，纳斯达克仍标 `Apr 2026`。实测同季最远差 ~33 天，差一整季至少 ~60 天。对不上就留空这行的财务数（前端 `—`），不能把上一季的数摆在本季公布日旁边。
+  - `earnings()` 返回 `(去重后的行, 代码→行)` 两样：前者是降级缓存（按行去重，双重股权只留一行），后者供权重表按代码逐行取数——只给去重后的列表会让 GOOG 那行平白空一片（映射里 GOOG 与 GOOGL 指向同一个 row 对象）。**公布日搬进权重表必须改名 `rpt`**：权重行里的 `date` 是 `metrics()` 的行情收盘日、前端 `HoldCard` 在用，同名合并会被财报日悄悄覆盖。
+  - 覆盖标的 = 七巨头 + 权重表前十（`usNDX` 是指数无财报，排除）。`parse_surprise()` 按 `dateReported` 取 max 而非信上游排序（实测倒序但无契约）。单只纳斯达克失败跳该行、单只东财失败只留空那几格；纳斯达克全军覆没才沿用上次的 `earnings` 并逐行标 `stale`，没有旧值则整块隐藏卡片。
+  - 改 `parse_surprise()` / `parse_income()` 跑 `test_us_perf.py`（最新行选取 / 空表抛错 / 多项目取数 / 财季越月 / 项目缺失 / 财季错位六条分支，全离线）。其余源试过并弃用：腾讯无美股财务接口（`Can't load controller:UsFinanceController`）、新浪 `US_FinanceService` 返回 `Service not valid`、Yahoo `quoteSummary` 现在 401 `Invalid Crumb`、`stockanalysis.com/api/screener/*` 全 404 已废。要 GAAP 底稿再看 SEC `data.sec.gov/api/xbrl/companyconcept`（要合规 UA + 十位补零 CIK）。
+- **加密卡片（并在 `UsPage`，`us_perf.py` 的 `crypto()`）**：BTC/ETH 美元现货，与美股三列同口径（共用 `perf()`，`metrics()` 现在只是 `perf(closes(sym))` 的壳）。源是 **Kraken 公共 OHLC**（`api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440`），一次 720 根日线 ≈2 年，三个基准都够，无 key 无 UA 要求。**响应键不等于请求的 pair**——传 `XBTUSD` 回的是 `XXBTZUSD`（Kraken 管 BTC 叫 XBT，ETH 是 `XETHZUSD`），只能挑 `result` 里除 `last` 外的那个键，别硬编码；行 `[ts,o,h,l,c,vwap,vol,count]` 数值全是字符串。其余源实测：**币安 451 地域封锁**（`api1` 同样，GH Actions 的美国 IP 一样挂，只有 `data-api.binance.vision` 通但那是镜像不保证长期）、OKX 本地通但美国 IP 有封锁风险故 CI 不能用、Coinbase 一次只给 350 根要 start/end 分页（可作备源，带 UA 否则空返回）、腾讯没有加密（`hf_BTC` 返回 `v_pv_none_match`）、新浪 `hf_BTC` 是 CME 比特币期货不是现货（有假日休市）。加密 7×24 按 UTC 日切，最新那根是当日进行中的 bar，所以 `close` 即实时价；周一必有 bar，「本周」基准天然落到上周日，`perf()` 不用开特例。**「今日」列只给加密**（`cut` = 最新那根本身 → 基准是前一根；7×24 连续交易，昨日 UTC 收盘就是今日开盘，实测与 Kraken ticker 的 `o` 字段逐位相同），不进 `perf()`——美股那张表 407b626 特意用「本周」把「当日」换掉了。拉取失败沿用上次 `us_data.js` 里的 `crypto` 并逐行标 `stale`（前端半透明 + 注明），没有旧值则整块隐藏卡片——不拖垮美股那几张表。数据仍写进 `us_data.js`，故 `us.yml` 的 `git add` 不用改；`us.yml` 那两条 cron 对加密偏晚（7×24 无收盘，任何时间跑都有数），暂不单独排期。改 `parse_kraken()` 跑 `test_us_perf.py`。**前端 15s 轮询实时价**（`UsPage` 的 `CoinCard`，实际 2s）：**Kraken 开了 CORS**（回显 Origin，Coinbase/CoinGecko 是 `*`），浏览器直接 `fetch('/0/public/Ticker?pair=XBTUSD,ETHUSD')` 即可，不用 `EtfPage` 那套 `<script>` 注入绕；`result.<key>.c[0]` 是最新成交价，**键同样被改名**，按币种前三位（`XBT`/`ETH`）反查而不是信对象键顺序。**基准不重拉**：新涨跌幅 = `(1+p/100) × 实时价 / 那根收盘 − 1`，纯代数，`us_perf.py` 一行不用改，实测与直接用日线基准重算逐位相同（p 只有两位小数，误差 ±0.005pp）。已知缺口：跨 UTC 周/月/年时基准变了而 `close` 还是上次 CI 那根——周一北京 08:00~15:20 之间「本周」列用的是上上周基准，要修得学 `nqRebase()` 导出日线段换基准。`stale` 时不开实时（基准本身就是旧的）。
+- 只导出今年以来的数据（`median_trend.main()` 末尾按 `%Y-01-01` 过滤）。
+
+## 房价侧的坑
+
+**主指数表必须解析出 70 城，少了就 raise。** 表格是双栏并排（左 35 城 + 右 35 城），列数靠 `parse_main_index_table` 从首行推断（6 列 / 8 列）。推断错会只吃到左半栏，静默落盘 35 城残缺数据 —— 2026-01 真发生过。`EXPECT_CITIES` 断言就是防这个，不要为了「让它先跑通」把断言放宽。
+
+**原始 HTML 必须存档，解析失败也要存。** `data/raw/YYYY-MM.html.gz`（gzip，1.4MB → ~140KB，才进得了 git）。统计局改版或撤稿后，靠它离线复现 + `--reparse`，不用重抓。写入时必须 `mtime=0`（`save_raw` 里）—— gzip 默认把当前时间写进文件头，同样的 HTML 每次压出来字节都不同，git 会把内容没变的存档全标成 modified，自动更新流程就没法靠 diff 判断有没有新数据。
+
+**`housingData.generated.js`（生成）和 `housingData.js`（手写辅助函数）必须分开。** 早前混在一个文件里，重跑 generator 把手写函数全冲掉了。generated 文件只导出数据，js 文件 re-export 数据 + 加函数。
+
+**数据文件只有一份 `data/70城房价.json`，按 (年, 月) 去重合并写入**（`merge_save`），不带时间戳。多份带时间戳的文件会让下游按 glob 顺序随机选中版本。
+
+**抓取是增量的**（`existing_months()`）：已抓过的月份跳过，不重复下载。「已抓过」= 数据文件里有该月 **且** raw 存档还在，两个条件缺一不可 —— 只看数据文件的话，存档丢了的月份会被永久跳过再也补不回来。强制重抓用 `--force`。
+
+**「没有新数据」必须正常退出，不能 `sys.exit(1)`。** 每月定时任务在统计局发布前跑到这里是常态，报错会让 CI 天天报红。只有真正抓取失败（`failures`）才退出非 0。
+
+**城市分级只有三档：一线 4 / 二线 31 / 三线 35**（`generate_js_data.py` 的 `CITY_TIERS`，国家统计局口径）。不要自造四线/五线，那对不上公报也无法对外解释。
+
+### 房价数据形状
+
+`data/70城房价.json`：list of entry，每 entry 一个月：
+```
+{year, month, pub_date, url, title,
+ new_house: {城市: {环比, 同比, 平均}},      # 指数，上月=100
+ second_hand: {...},
+ new_house_by_area: {城市: {"90m²及以下": {...}, "90-144m²": {...}, "144m²以上": {...}}},
+ second_hand_by_area: {...}}
+```
+
+前端只用「环比」。`dataByYear[year] = { months, newHouse: {城市: [每月环比]}, secondHand: {...} }`。
+`HousingPage` 直接用 echarts 命令式 API（`useRef` + `useEffect`）。

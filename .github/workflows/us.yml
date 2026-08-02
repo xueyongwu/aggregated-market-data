@@ -1,0 +1,40 @@
+name: us-market
+
+# 单独拆出来的原因见 CLAUDE.md: 美股的更新节奏跟 A 股那条完全对不上。
+# 美股 16:00 ET 收盘 = 北京 04:00(夏)/05:00(冬), 腾讯日线当天早上就能取到。
+on:
+  schedule:
+    # UTC 07:20 = 北京 15:20, 抓美东前一交易日收盘。1-5 = UTC 周一~周五。
+    # 错开 daily-update 的 07:10 十分钟: 两条 workflow 都往 main 推, 同时刻跑会撞 push 竞态。
+    - cron: "20 7 * * 1-5"
+    # UTC 22:00 周五 = 北京周六 06:00。美东周五盘北京周六 04:00 才收,
+    # 少了这条要等到北京周一 15:10 才上页面, 周末整整挂 2 天半的陈旧数据。
+    - cron: "0 22 * * 5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write  # 触发 deploy.yml
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install pandas requests
+      - run: python us_perf.py
+      - name: commit & push
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app/src/data/us_data.js
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: us market update $(date -u +%F)"
+          git pull --rebase
+          git push
+          gh workflow run deploy.yml
