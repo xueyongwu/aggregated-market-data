@@ -12,7 +12,7 @@ BTC/ETH 现货同口径涨跌幅(见 crypto())。
 
 单只失败即整体抛错不写文件, 页面保留上次的 us_data.js(workflow continue-on-error)。
 
-用法: python us_perf.py
+用法: python -m pipeline.stock.us_perf
 """
 import json
 import re
@@ -23,7 +23,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from paths import WEB_DATA
+from pipeline.paths import WEB_DATA
 
 
 def fetch(url: str, tries: int = 3, **kw) -> requests.Response:

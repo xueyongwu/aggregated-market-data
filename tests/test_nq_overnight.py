@@ -1,12 +1,12 @@
-"""NQ 隔夜窗口逻辑自检(合成 bar, 不联网): python test_nq_overnight.py
+"""NQ 隔夜窗口逻辑自检(合成 bar, 不联网): python -m tests.test_nq_overnight
 
 覆盖 overnight() 的四条分支: 完整点、CME 假日跳过、过 15:00 换窗、周末不换窗,
 外加 fetch_bars() 的重试(失败后成功 / 试满仍抛)。
 """
 import pandas as pd
 
-import nq_overnight
-from nq_overnight import fetch_bars, overnight
+from pipeline.stock import nq_overnight
+from pipeline.stock.nq_overnight import fetch_bars, overnight
 
 MON, TUE, WED, SAT = (pd.Timestamp(f"2026-07-{d}") for d in (20, 21, 22, 25))
 

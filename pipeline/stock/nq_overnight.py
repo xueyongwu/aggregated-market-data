@@ -6,23 +6,22 @@
 
 A股交易日历直接取 cache/daily_pctchg.parquet 的日期列, 不额外调接口。
 
-用法: python nq_overnight.py
+用法: python -m pipeline.stock.nq_overnight
 输出: cache/nq_min.parquet (dt, price)
       app/src/data/nq_data.js (NQ_OVERNIGHT, EtfPage 隔夜卡片; 只含最新一个窗口)
 """
 import json
 import re
 import time
-from pathlib import Path
 
 import pandas as pd
 import requests
 
-from paths import WEB_DATA
+from pipeline.paths import CACHE, WEB_DATA
 
 URL = ("https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20t=/"
        "GlobalFuturesService.getGlobalFuturesMinLine?symbol=NQ")
-CACHE = Path("cache/nq_min.parquet")
+MIN_BARS = CACHE / "nq_min.parquet"
 # 只画最新一个隔夜窗口, bar 留够它就行: 常态1天, 跨周末3天, 国庆最长8天(09-30 15:00
 # -> 10-08 09:30)。15 天是这条底线 + nq_night.yml 漏跑一两次的余量, 同时给缓存封顶
 # ——不裁的话每工作日 +~1300 行, 而两个 workflow 每天各重写提交一次整份 parquet。
@@ -50,7 +49,7 @@ def fetch_bars(tries: int = 3) -> pd.DataFrame:
 
 
 def trading_days() -> list[pd.Timestamp]:
-    d = pd.read_parquet("cache/daily_pctchg.parquet", columns=["date"])["date"].unique()
+    d = pd.read_parquet(CACHE / "daily_pctchg.parquet", columns=["date"])["date"].unique()
     return sorted(pd.to_datetime(d))
 
 
@@ -102,13 +101,13 @@ def overnight(bars: pd.DataFrame, tdays: list[pd.Timestamp]) -> list[dict]:
 
 def main():
     new = fetch_bars()
-    if CACHE.exists():
-        merged = (pd.concat([pd.read_parquet(CACHE), new])
+    if MIN_BARS.exists():
+        merged = (pd.concat([pd.read_parquet(MIN_BARS), new])
                   .drop_duplicates("dt", keep="last").sort_values("dt"))
     else:
         merged = new
     merged = merged[merged["dt"] >= merged["dt"].max() - pd.Timedelta(days=KEEP_DAYS)]
-    merged.to_parquet(CACHE, index=False)
+    merged.to_parquet(MIN_BARS, index=False)
 
     now = pd.Timestamp.now(tz="Asia/Shanghai")
     # 前端只画最新一个窗口的分时(带 path 的那条), 更早的隔夜点没人读, 不导出

@@ -1,12 +1,12 @@
-"""腾讯快照解析 + baostock 不可用降级 自检: python test_tencent_parse.py"""
+"""腾讯快照解析 + baostock 不可用降级 自检: python -m tests.test_tencent_parse"""
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
 import pandas as pd
 
-import median_trend as mt
-from median_trend import parse_tencent_quotes
+from pipeline.stock import median_trend as mt
+from pipeline.stock.median_trend import parse_tencent_quotes
 
 
 def line(sym, *, vol="1096087", stamp="20260721161447", pct="-2.08"):

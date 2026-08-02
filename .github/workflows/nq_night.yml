@@ -22,7 +22,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pandas pyarrow requests
-      - run: python nq_overnight.py
+      - run: python -m pipeline.stock.nq_overnight
       - name: commit & push
         env:
           GH_TOKEN: ${{ github.token }}

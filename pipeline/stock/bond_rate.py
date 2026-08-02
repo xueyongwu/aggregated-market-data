@@ -7,16 +7,15 @@
 活跃券 = 同期限桶内当日成交量最大的国债。券每季换, 故按「剩余期限 + 成交量」挑,
 不硬编码券代码。收益率单位 %, 涨跌单位 bp(收益率上行=债价下跌)。
 
-用法: python bond_rate.py
+用法: python -m pipeline.stock.bond_rate
 """
 import json
 from datetime import datetime
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import requests
 
-from paths import WEB_DATA
+from pipeline.paths import WEB_DATA
 
 API = "https://www.chinamoney.com.cn/ags/ms/cm-u-md-bond/CbtPri"
 # pageSize 被接口忽略(填 15 也回全量 2998 行), 但填 100 会撞 WAF 403, 别改大

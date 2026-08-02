@@ -1,7 +1,7 @@
-"""us_perf.pct() 基准选取自检(离线, 合成日线)。跑: python test_us_perf.py"""
+"""us_perf.pct() 基准选取自检(离线, 合成日线)。跑: python -m tests.test_us_perf"""
 import pandas as pd
 
-from us_perf import parse_income, parse_kraken, parse_surprise, pct, tech_split
+from pipeline.stock.us_perf import parse_income, parse_kraken, parse_surprise, pct, tech_split
 
 
 def series(pairs):

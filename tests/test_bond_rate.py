@@ -1,5 +1,5 @@
-"""bond_rate 选券逻辑自检(离线, 合成 records)。跑: python test_bond_rate.py"""
-from bond_rate import is_treasury, pick, years
+"""bond_rate 选券逻辑自检(离线, 合成 records)。跑: python -m tests.test_bond_rate"""
+from pipeline.stock.bond_rate import is_treasury, pick, years
 
 
 def rec(name, term, vol, rate="1.70", code="000000", bp=-0.5):

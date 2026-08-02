@@ -27,15 +27,15 @@ jobs:
         run: |
           # 12 月数据标题写「上一年12月」却在次年 1 月发布，只抓当年会漏掉
           if [ "$(date +%-m)" -le 2 ]; then
-            python scrape_housing_data.py --year "$(($(date +%Y) - 1))"
+            python -m pipeline.housing.scrape_housing_data --year "$(($(date +%Y) - 1))"
           fi
-          python scrape_housing_data.py --year "$(date +%Y)"
+          python -m pipeline.housing.scrape_housing_data --year "$(date +%Y)"
 
       - name: parser 自检
-        run: python test_parse.py
+        run: python -m tests.test_parse
 
       - name: 生成前端数据
-        run: python generate_js_data.py
+        run: python -m pipeline.housing.generate_js_data
 
       - name: 检查是否有新数据
         id: diff

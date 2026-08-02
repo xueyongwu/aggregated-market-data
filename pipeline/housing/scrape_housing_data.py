@@ -5,28 +5,28 @@
 用法：
     # 激活虚拟环境后运行
     source .venv/bin/activate
-    python scrape_housing_data.py
+    python -m pipeline.housing.scrape_housing_data
 
     # 指定年份
-    python scrape_housing_data.py --year 2026
+    python -m pipeline.housing.scrape_housing_data --year 2026
 
     # 抓取所有可用年份
-    python scrape_housing_data.py --all
+    python -m pipeline.housing.scrape_housing_data --all
 
     # 输出为 CSV
-    python scrape_housing_data.py --format csv
+    python -m pipeline.housing.scrape_housing_data --format csv
 
     # 输出为 JSON（默认）
-    python scrape_housing_data.py --format json
+    python -m pipeline.housing.scrape_housing_data --format json
 
     # 抓取指定 URL
-    python scrape_housing_data.py --url https://www.stats.gov.cn/sj/zxfb/202606/t20260616_1963946.html
+    python -m pipeline.housing.scrape_housing_data --url https://www.stats.gov.cn/sj/zxfb/202606/t20260616_1963946.html
 
     # 离线重解析已存档的 HTML（统计局改版后修完 parser 用这个，不发网络请求）
-    python scrape_housing_data.py --reparse
+    python -m pipeline.housing.scrape_housing_data --reparse
 
     # 重抓已有月份（默认增量：已抓过的月份跳过，不重复下载）
-    python scrape_housing_data.py --force
+    python -m pipeline.housing.scrape_housing_data --force
 
 输出：
     data/70城房价.json   全部月份，按 (年,月) 去重，重复运行合并而非新建文件
@@ -46,6 +46,8 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
+from pipeline import paths
+
 # ============================================================
 # 配置
 # ============================================================
@@ -64,7 +66,7 @@ HEADERS = {
 }
 
 REQUEST_DELAY = 1.5  # 请求间隔（秒），避免过于频繁
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+OUTPUT_DIR = str(paths.DATA)
 
 # 全部月份汇总到单一文件，按 (年,月) 去重。带时间戳的多份文件会让下游按 glob 顺序随机选中版本。
 DATA_FILE = os.path.join(OUTPUT_DIR, "70城房价.json")
@@ -684,11 +686,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  python scrape_housing_data.py                    # 抓取2026年数据（默认）
-  python scrape_housing_data.py --year 2025        # 抓取2025年数据
-  python scrape_housing_data.py --all              # 抓取所有可用年份
-  python scrape_housing_data.py --format csv       # 输出为CSV
-  python scrape_housing_data.py --url URL          # 抓取指定URL
+  python -m pipeline.housing.scrape_housing_data                    # 抓取2026年数据（默认）
+  python -m pipeline.housing.scrape_housing_data --year 2025        # 抓取2025年数据
+  python -m pipeline.housing.scrape_housing_data --all              # 抓取所有可用年份
+  python -m pipeline.housing.scrape_housing_data --format csv       # 输出为CSV
+  python -m pipeline.housing.scrape_housing_data --url URL          # 抓取指定URL
         """
     )
     parser.add_argument("--year", type=int, default=2026,

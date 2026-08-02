@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pandas requests
-      - run: python us_perf.py
+      - run: python -m pipeline.stock.us_perf
       - name: commit & push
         env:
           GH_TOKEN: ${{ github.token }}

@@ -11,7 +11,7 @@ import time
 import re
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from scrape_housing_data import (
+from pipeline.housing.scrape_housing_data import (
     fetch_page, extract_table_data, extract_month_from_title,
     save_raw, merge_save, existing_months,
     ARTICLE_KEYWORD, BASE_URL, HEADERS, log
@@ -19,7 +19,9 @@ from scrape_housing_data import (
 import requests
 from bs4 import BeautifulSoup
 
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+from pipeline import paths
+
+OUTPUT_DIR = str(paths.DATA)
 
 
 def find_all_articles_for_years(target_years):

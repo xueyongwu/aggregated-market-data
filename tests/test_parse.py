@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-parser 自检。跑: .venv/bin/python test_parse.py
+parser 自检。跑: .venv/bin/python -m tests.test_parse
 
 用 data/raw/ 下的存档 HTML 回归测试，不发网络请求。
 """
@@ -9,8 +9,8 @@ import glob
 import os
 import sys
 
-import scrape_housing_data as s
-from scrape_housing_data import extract_table_data, load_raw, EXPECT_CITIES, RAW_DIR
+from pipeline.housing import scrape_housing_data as s
+from pipeline.housing.scrape_housing_data import extract_table_data, load_raw, EXPECT_CITIES, RAW_DIR
 
 
 def test_all_archived_html_parses():

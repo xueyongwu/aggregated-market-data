@@ -19,14 +19,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install baostock pandas pyarrow akshare requests  # requests 是腾讯快照主源用的, 别靠 akshare 传递依赖
-      - run: python median_trend.py --update
-      - run: python intraday_cache.py 159696
+      - run: python -m pipeline.stock.median_trend --update
+      - run: python -m pipeline.stock.intraday_cache 159696
         continue-on-error: true  # 新浪接口偶发失败不阻断中位数更新
-      - run: python index_perf.py
+      - run: python -m pipeline.stock.index_perf
         continue-on-error: true  # 指数源(新浪/中证/同花顺)偶发失败不阻断, 页面用旧数据
-      - run: python nq_overnight.py
+      - run: python -m pipeline.stock.nq_overnight
         continue-on-error: true  # 新浪外盘接口偶发失败不阻断, 页面用旧数据
-      - run: python bond_rate.py
+      - run: python -m pipeline.stock.bond_rate
         continue-on-error: true  # 中国货币网偶发失败不阻断, 页面用旧数据(卡片自带成交时间戳)
       - name: commit & push
         env:

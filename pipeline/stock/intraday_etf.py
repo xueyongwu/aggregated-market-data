@@ -7,8 +7,8 @@
       平均后得到"典型日内曲线": 偏离持续为负的时刻=系统性低点(买), 持续为正=高点(卖)。
       叠加各时刻平均分段收益, 辅证。
 
-用法: python intraday_etf.py [代码] [周期]
-      python intraday_etf.py 159696 5     # 默认
+用法: python -m pipeline.stock.intraday_etf [代码] [周期]
+      python -m pipeline.stock.intraday_etf 159696 5     # 默认
 依赖: akshare pandas
 """
 import sys

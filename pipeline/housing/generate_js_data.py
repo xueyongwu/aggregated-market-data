@@ -9,12 +9,13 @@ import os
 import sys
 from collections import defaultdict
 
-DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/70城房价.json")
+from pipeline import paths
+
+DATA_FILE = str(paths.DATA / "70城房价.json")
 
 # 只写数据，不写函数。辅助函数手写在 housingData.js 里 —— 两者混在一个文件时，
 # 重跑本脚本会把手写函数全部冲掉。
-OUTPUT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                           "app/src/data/housingData.generated.js")
+OUTPUT_FILE = str(paths.WEB_DATA / "housingData.generated.js")
 
 # 城市分级 —— 国家统计局口径（与数据源同口径，只有三档）：
 #   一线 4 城，二线 31 城（省会 + 计划单列市），三线 35 城（其余）
@@ -40,7 +41,7 @@ def load_data():
     """加载统一数据文件（scrape_housing_data.py 已按 (年,月) 去重并排序）"""
     if not os.path.exists(DATA_FILE):
         print(f"❌ 数据文件不存在: {DATA_FILE}")
-        print("   先跑: python scrape_housing_data.py")
+        print("   先跑: python -m pipeline.housing.scrape_housing_data")
         sys.exit(1)
 
     with open(DATA_FILE, "r", encoding="utf-8") as f:

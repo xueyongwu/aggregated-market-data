@@ -9,14 +9,14 @@
 基准 = 上年最后交易日收盘, YTD = 最新收盘/基准 - 1。
 单指数全部源失败时退回上次 idx_data.js 里的值并标 stale, 页面灰显; 没有旧值才少一根条。
 
-用法: python index_perf.py
+用法: python -m pipeline.stock.index_perf
 """
 import json
 from pathlib import Path
 
 import pandas as pd
 
-from paths import WEB_DATA
+from pipeline.paths import WEB_DATA
 
 TX = ("tx", "sina")  # 腾讯为主, 新浪兜底
 

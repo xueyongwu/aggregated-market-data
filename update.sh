@@ -3,12 +3,12 @@
 #
 # 用法：
 #   ./update.sh            全部（A股 + 纳指ETF + 指数 + 债 + 美股 + 房价）
-#   ./update.sh housing    只跑房价（可带年份：./update.sh housing 2025）
 #   ./update.sh stock      只跑 A股 / ETF / 指数 / 债 / NQ / 美股
+#   ./update.sh housing    只跑房价（可带年份：./update.sh housing 2025）
 #
 # 线上有对应的 workflow 各自按自己的节奏跑，这个脚本只是本地手动补一趟。
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")"   # pipeline 是包，-m 要求仓库根在 sys.path 上
 
 PY=.venv/bin/python
 [ -x "$PY" ] || { echo "❌ 没有 .venv，先跑: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"; exit 1; }
@@ -16,12 +16,12 @@ PY=.venv/bin/python
 what=${1:-all}
 
 run_stock() {
-  echo "▶ A股中位数..."   ; "$PY" median_trend.py --update
-  echo "▶ 159696 分时..." ; "$PY" intraday_cache.py 159696 || echo "  (跳过)"
-  echo "▶ 宽基指数..."     ; "$PY" index_perf.py            || echo "  (跳过)"
-  echo "▶ 国债活跃券..."   ; "$PY" bond_rate.py             || echo "  (跳过)"
-  echo "▶ NQ 隔夜..."      ; "$PY" nq_overnight.py          || echo "  (跳过)"
-  echo "▶ 美股 + 加密..."  ; "$PY" us_perf.py               || echo "  (跳过)"
+  echo "▶ A股中位数..."   ; "$PY" -m pipeline.stock.median_trend --update
+  echo "▶ 159696 分时..." ; "$PY" -m pipeline.stock.intraday_cache 159696 || echo "  (跳过)"
+  echo "▶ 宽基指数..."     ; "$PY" -m pipeline.stock.index_perf            || echo "  (跳过)"
+  echo "▶ 国债活跃券..."   ; "$PY" -m pipeline.stock.bond_rate             || echo "  (跳过)"
+  echo "▶ NQ 隔夜..."      ; "$PY" -m pipeline.stock.nq_overnight          || echo "  (跳过)"
+  echo "▶ 美股 + 加密..."  ; "$PY" -m pipeline.stock.us_perf               || echo "  (跳过)"
 }
 
 run_housing() {
@@ -31,10 +31,10 @@ run_housing() {
   else years=("$(date +%Y)")
   fi
   for y in "${years[@]}"; do
-    echo "▶ 抓取 $y 年房价..." ; "$PY" scrape_housing_data.py --year "$y"
+    echo "▶ 抓取 $y 年房价..." ; "$PY" -m pipeline.housing.scrape_housing_data --year "$y"
   done
-  echo "▶ parser 自检..."     ; "$PY" test_parse.py
-  echo "▶ 生成前端数据..."     ; "$PY" generate_js_data.py
+  echo "▶ parser 自检..."     ; "$PY" -m tests.test_parse
+  echo "▶ 生成前端数据..."     ; "$PY" -m pipeline.housing.generate_js_data
 }
 
 case "$what" in

@@ -8,9 +8,9 @@
     缓存有缺口或腾讯不可用时回退 baostock(逐股慢, 且当日数据 ~17:30 后才有)。
 
 用法:
-    python median_trend.py                 # 无缓存则全量拉, 有则直接导出 median_data.js
-    python median_trend.py --refresh       # 强制重拉
-    python median_trend.py --update        # 收盘后增量重拉最近10天
+    python -m pipeline.stock.median_trend             # 无缓存则全量拉, 有则直接导出 median_data.js
+    python -m pipeline.stock.median_trend --refresh   # 强制重拉
+    python -m pipeline.stock.median_trend --update    # 收盘后增量重拉最近10天
     然后 cd app && pnpm dev
 
 依赖: pip install baostock pandas pyarrow
@@ -22,10 +22,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from paths import WEB_DATA
+from pipeline.paths import CACHE, WEB_DATA
 
-CACHE = Path(__file__).parent / "cache"
-CACHE.mkdir(exist_ok=True)
 RAW = CACHE / "daily_pctchg.parquet"  # 长表: date, code, pct
 ST = CACHE / "st_codes.json"          # ST 名单快照(见 st_codes)
 ST_TTL_DAYS = 7

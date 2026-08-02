@@ -15,8 +15,11 @@
 ## 目录
 
 ```
-*.py                    抓取脚本（平铺；A股/ETF/美股/房价各几个，文件名无冲突）
-paths.py                统一的前端数据输出目录常量
+pipeline/               抓取管道（Python 包，一律 python -m 调用）
+  paths.py              ROOT / CACHE / DATA / WEB_DATA，全是绝对路径
+  stock/                A股中位数、场内ETF、宽基指数、国债、纳指期货、美股+加密
+  housing/              统计局 70 城房价
+tests/                  离线自检（assert 脚本，无测试框架）
 data/                   房价原始 JSON + data/raw/ 的 gzip 存档
 cache/                  parquet 缓存（CI 增量依赖，部分入库，见 .gitignore）
 app/                    Vite + React 19 + ECharts 6 单页应用
@@ -30,6 +33,7 @@ app/                    Vite + React 19 + ECharts 6 单页应用
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ./update.sh                 # 抓数据（all / stock / housing）
+python -m tests.test_us_perf   # 离线自检，tests/ 下逐个跑
 
 cd app && pnpm install
 pnpm dev                    # http://localhost:5173

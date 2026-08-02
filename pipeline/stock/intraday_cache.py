@@ -3,7 +3,7 @@
 新浪接口固定返回最新 1970 根 1min bar (~9 交易日), 每日拉取按 day 去重合并,
 缓存逐日增长, 突破 1970 根历史深度限制。
 
-用法: python intraday_cache.py [代码]     # 默认 159696
+用法: python -m pipeline.stock.intraday_cache [代码]   # 默认 159696
 输出: cache/intraday_{code}_1min.parquet  列: day open high low close volume amount
       app/src/data/etf_data.js  (ETF_DATA, 供 EtfPage 渲染日K + 分时)
 """
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from paths import WEB_DATA
+from pipeline.paths import CACHE, WEB_DATA
 
 
 def export_js(df: pd.DataFrame, code: str, out: Path = None) -> int:
@@ -43,7 +43,7 @@ def export_js(df: pd.DataFrame, code: str, out: Path = None) -> int:
 
 def main():
     code = sys.argv[1] if len(sys.argv) > 1 else "159696"
-    path = Path(f"cache/intraday_{code}_1min.parquet")
+    path = CACHE / f"intraday_{code}_1min.parquet"
 
     from median_trend import is_trading_day
     today = pd.Timestamp.now(tz="Asia/Shanghai").strftime("%Y-%m-%d")
