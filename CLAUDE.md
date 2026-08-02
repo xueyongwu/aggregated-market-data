@@ -63,13 +63,11 @@ cd app && pnpm lint     # eslint(当前零 error，别放宽)
 ## 整合带来的约束（改这几处前先读）
 
 **`*_data.js` 是 Vite 源文件，不是页面直接引的 `<script>`。** 格式是 `export const X = {...};`，
-写在 `app/src/data/` 下（路径统一走 `paths.py` 的 `WEB_DATA`）。三条连带影响：
+写在 `app/src/data/` 下（路径统一走 `paths.py` 的 `WEB_DATA`）。两条连带影响：
 1. **数据变了必须重新构建才上线** —— 所以四条抓取 workflow 提交完都显式 `gh workflow run deploy.yml`，
    GITHUB_TOKEN 推的 commit 不会自动触发别的 workflow，少这一步页面永远是旧的。
 2. `us_perf.py` / `index_perf.py` 的降级读回（`last()` / `last_good()`）按 `t.index("=")`…`t.rindex(";")`
    切自己上次的输出，`export const X = ` 照样命中第一个 `=`，没改这两个函数。**别在文件开头加带 `=` 或 `;` 的注释。**
-3. `chrome-ext/sw.js` 的 `jsonIn()` 按首尾花括号切，同样不受影响，但 URL 已指到
-   `raw.githubusercontent.com/.../app/src/data/nq_data.js`，换目录要同步改。
 
 **深浅两套皮是全站的，图表配色必须在 effect 里现读。** ECharts 的颜色在 `setOption` 时就烤进去了，
 换肤只能 dispose 重建 —— 所以每个建图的 `useEffect` 都把 `theme` 放进依赖数组，用 `theme.jsx` 的

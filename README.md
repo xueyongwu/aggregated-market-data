@@ -19,7 +19,6 @@
 paths.py                统一的前端数据输出目录常量
 data/                   房价原始 JSON + data/raw/ 的 gzip 存档
 cache/                  parquet 缓存（CI 增量依赖，部分入库，见 .gitignore）
-chrome-ext/             NQ 隔夜 badge 的 Chrome MV3 扩展
 app/                    Vite + React 19 + ECharts 6 单页应用
   src/data/*.js         抓取脚本产出的 ES module 数据（提交入库）
   src/pages/            四个页面
