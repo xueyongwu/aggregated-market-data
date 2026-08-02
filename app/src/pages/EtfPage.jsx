@@ -259,9 +259,6 @@ export default function EtfPage() {
 
   return (
     <div className="wrap">
-      <header>
-        <h1>159696 走势</h1>
-      </header>
       <div className="card">
         {head.chg != null && (
           <div className="hero">

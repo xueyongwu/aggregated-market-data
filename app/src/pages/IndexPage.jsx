@@ -92,7 +92,6 @@ export default function IndexPage() {
   return (
     <div className="wrap">
       <header>
-        <h1>A股宽基指数</h1>
         <div className="sub">更新于 {IX.updated}</div>
       </header>
       <div className="card">

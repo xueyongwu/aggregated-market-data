@@ -112,7 +112,6 @@ export default function MedianPage() {
   return (
     <div className="wrap">
       <header>
-        <h1>A股中位数</h1>
         <div className="sub">更新于 {D.updated}</div>
       </header>
 

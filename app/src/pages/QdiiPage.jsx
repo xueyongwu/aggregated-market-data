@@ -366,9 +366,6 @@ export default function QdiiPage() {
   const { theme } = useTheme();
   return (
     <div className="wrap">
-      <header>
-        <h1>纳指 · QDII</h1>
-      </header>
       <NqCard theme={theme} />
       <QdiiCard />
     </div>

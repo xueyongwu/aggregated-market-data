@@ -275,13 +275,9 @@ table,
   flex-wrap: wrap;
   gap: 8px;
 }
-.wrap h1 {
-  font-size: 20px;
-  font-weight: 650;
-  margin: 0;
-  letter-spacing: 0.2px;
-}
 .sub {
+  /* header 里现在只剩「更新于」一项(页名归导航), 推到右侧当元数据读 */
+  margin-left: auto;
   color: var(--muted);
   font-size: 13px;
   display: flex;
@@ -482,10 +478,7 @@ table.dt {
 
 @media (max-width: 680px) {
   .wrap { padding: 16px 12px 40px; }
-  .wrap h1 { font-size: 17px; }
-  /* 窄屏「更新于…」默认被挤到第二行: 缩字号腾出空间, 让它回到标题右边。
-     header 的 flex-wrap 保留 —— 320 这种极窄屏放不下时宁可换行, 也别横向溢出 */
-  .sub { font-size: 10px; white-space: nowrap; gap: 6px; }  /* 实测: 10px 起 360 屏才够一行 */
+  .sub { font-size: 11px; white-space: nowrap; gap: 6px; }
   .tile { padding: 12px; }
   .tile .v { font-size: 19px; }
   .card { padding: 12px 6px 6px; }

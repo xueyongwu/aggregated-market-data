@@ -53,7 +53,6 @@ export default function BondPage() {
   return (
     <div className="wrap">
       <header>
-        <h1>国债活跃券</h1>
         <div className="sub">更新于 {BD.updated}</div>
       </header>
       <div className="card">

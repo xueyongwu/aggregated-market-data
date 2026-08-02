@@ -183,7 +183,6 @@ export default function UsPage() {
   return (
     <div className="wrap narrow">
       <header>
-        <h1>美股纳指100</h1>
         <div className="sub">更新于 {U.updated}</div>
       </header>
       <PerfCard />

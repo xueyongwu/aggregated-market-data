@@ -63,7 +63,6 @@ export default function CryptoPage() {
   return (
     <div className="wrap narrow">
       <header>
-        <h1>加密货币</h1>
         <div className="sub">更新于 {U.updated}</div>
       </header>
       <div className={"card" + (C[0].stale ? " stale" : "")}>
