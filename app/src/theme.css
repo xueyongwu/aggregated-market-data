@@ -91,11 +91,15 @@ table,
   font-variant-numeric: tabular-nums;
 }
 
-/* ========== 站点导航 ========== */
+/* ========== 站点导航 ==========
+ * 宽屏：顶部一条横向 pill。
+ * 窄屏：汉堡 + 当前页名 + 左侧抽屉 —— 8 个标签横排在 375px 上必然溢出成横向滚动条，
+ *      而横向滚动的导航看不见"还有几项"，抽屉一眼全在。
+ * 两边渲染的是同一份 <a> 列表，只有容器不同。 */
 .nav {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 30;
   background: color-mix(in srgb, var(--page) 88%, transparent);
   backdrop-filter: saturate(180%) blur(12px);
   border-bottom: 1px solid var(--border);
@@ -107,6 +111,11 @@ table,
   display: flex;
   align-items: center;
   gap: 6px;
+}
+.nav-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 .nav a {
   font-size: 13px;
@@ -126,19 +135,103 @@ table,
 .nav .sp {
   flex: 1;
 }
-@media (max-width: 680px) {
+/* 汉堡与"当前页名"只属于窄屏 */
+.burger,
+.nav-now {
+  display: none;
+}
+.burger {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--muted);
+  padding: 5px 6px;
+  line-height: 0;
+  cursor: pointer;
+}
+.burger:hover {
+  color: var(--ink2);
+}
+.nav-now {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-left: 4px;
+}
+
+/* 抽屉：宽屏整块不存在 */
+.drawer {
+  display: none;
+}
+
+/* 860 而不是别处那个 680：8 个标签横排实测要 800px，加深浅色开关和左右内边距，
+ * 830 以下横条就把页面顶出横向滚动条了。页面其余部分的窄屏断点仍是 680。 */
+@media (max-width: 860px) {
   .nav-in {
     padding: 7px 10px;
-    gap: 2px;
-    overflow-x: auto;
-    scrollbar-width: none;
   }
-  .nav-in::-webkit-scrollbar {
+  .nav-bar {
     display: none;
   }
-  .nav a {
-    font-size: 12px;
-    padding: 5px 9px;
+  .burger,
+  .nav-now {
+    display: block;
+  }
+  .burger {
+    display: inline-flex;
+  }
+
+  .drawer {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    /* 关着的时候整块不可点，否则遮罩会吃掉全屏的触摸 */
+    pointer-events: none;
+  }
+  .drawer.open {
+    pointer-events: auto;
+  }
+  .drawer-mask {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .drawer.open .drawer-mask {
+    opacity: 1;
+  }
+  .drawer-panel {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 62vw;
+    max-width: 240px;
+    padding: 14px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    /* 关着时整块推到屏幕外；transform 比改 width/left 省一次布局 */
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    overflow-y: auto;
+  }
+  .drawer.open .drawer-panel {
+    transform: none;
+  }
+  .drawer a {
+    font-size: 15px;
+    padding: 11px 12px;
+    border-radius: 10px;
+    color: var(--ink2);
+    text-decoration: none;
+  }
+  .drawer a.on {
+    color: var(--ink);
+    background: var(--grid);
+    font-weight: 600;
   }
 }
 
