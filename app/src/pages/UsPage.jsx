@@ -181,7 +181,7 @@ export default function UsPage() {
   useTheme(); // 无图表, 换肤纯靠 CSS 变量, 但要跟着重渲染
   const H = U.holdings;
   return (
-    <div className="wrap narrow">
+    <div className="wrap">
       <header>
         <div className="sub">更新于 {U.updated}</div>
       </header>

@@ -61,7 +61,7 @@ export default function CryptoPage() {
 
   if (!C?.length) return null;
   return (
-    <div className="wrap narrow">
+    <div className="wrap">
       <header>
         <div className="sub">更新于 {U.updated}</div>
       </header>

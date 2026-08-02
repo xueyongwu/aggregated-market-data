@@ -265,15 +265,13 @@ table,
   margin: 0 auto;
   padding: 26px 20px 60px;
 }
-.wrap.narrow {
-  max-width: 940px;
-}
 .wrap > header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px;
+  margin-bottom: 14px;
 }
 .sub {
   /* header 里现在只剩「更新于」一项(页名归导航), 推到右侧当元数据读 */
@@ -484,11 +482,8 @@ table.dt {
   .card { padding: 12px 6px 6px; }
   .card h2 span.dot { display: block; margin-top: 3px; }  /* 副标题另起一行, 否则从句子中间折断 */
   .card h2 span.dot::before { content: none; }
-  /* 两列各占半屏, 券名+剩余+成交 一行塞不下 -> 明细另起一行, 字号跟统计瓦片对齐 */
-  .bond { gap: 10px; padding: 8px 6px 6px; }
-  .bond .y { font-size: 19px; }
-  .bond .y small { font-size: 12px; margin-left: 6px; }
-  .bond .m i { display: block; margin-left: 0; margin-top: 2px; }
+  /* 两列各占半屏塞不下券名+剩余+成交 -> 改上下堆叠, 每只券独占整行 */
+  .bond { grid-template-columns: 1fr; gap: 16px; padding: 8px 6px 6px; }
 }
 
 /* ========== pane 切换 tab(纳指QDII 页) ========== */
