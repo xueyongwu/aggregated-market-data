@@ -2,7 +2,7 @@
 import { useEffect, useRef } from "react";
 import { echarts } from "../echarts";
 import { useTheme, vars } from "../theme";
-import { COLORS, MOBILE, fmtP } from "../chartBase";
+import { COLORS, fmtP } from "../chartBase";
 import { INDEX_YTD as IX } from "../data/idx_data";
 
 export default function IndexPage() {
@@ -13,9 +13,11 @@ export default function IndexPage() {
     if (!IX?.items?.length) return;
     const C = vars(...COLORS);
     const items = [...IX.items].reverse(); // ECharts 类目轴自下而上, 反转让涨幅最大在顶
-    // 移动端: 柱长≥数据跨度20%(约一个标签宽)才放柱内, 短柱外置
-    const span = Math.max(0, ...items.map((i) => i.ytd)) - Math.min(0, ...items.map((i) => i.ytd));
-    const inside = (v) => MOBILE && Math.abs(v) >= 0.2 * span;
+    // 轴按两侧绝对值最大的那根收紧(对称), 不让 echarts 自动圆到 ±30% 白留一大截
+    const cap = Math.max(...items.map((i) => Math.abs(i.ytd)));
+    // 柱长≥半轴40%(约一个标签宽)才放柱内 —— 轴收紧后最长那根顶到 grid 边,
+    // 标签外置会被裁掉(负向的还会压到左边类目名上), 所以这条不再只对移动端生效
+    const inside = (v) => Math.abs(v) >= 0.4 * cap;
     const m = echarts.init(box.current, null, { renderer: "canvas" });
     m.setOption({
       grid: { left: 8, right: 8, top: 6, bottom: 24, containLabel: true },
@@ -36,7 +38,8 @@ export default function IndexPage() {
       },
       xAxis: {
         type: "value",
-        boundaryGap: ["6%", "6%"], // 两端留白: 最长柱的外置标签否则会被 grid 裁掉
+        min: -cap,
+        max: cap, // 设了 min/max 后 boundaryGap 失效, 两端一点不留
         axisLabel: { color: C.muted, fontSize: 11, formatter: "{value}%" },
         splitLine: { lineStyle: { color: C.grid } },
         axisLine: { show: false },

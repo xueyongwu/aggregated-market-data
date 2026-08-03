@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "../theme";
 import { poll } from "../jsonp";
-import { Pct } from "../table";
+import { fmt } from "../table";
 import { US_PERF as U } from "../data/us_data";
 
 export default function CryptoPage() {
@@ -69,37 +69,45 @@ export default function CryptoPage() {
         <h2>
           BTC / ETH <span>{sub}</span>
         </h2>
-        <div className="tWrap">
-          <table className="dt">
-            <thead>
-              <tr>
-                <th>标的</th><th>最新价</th><th>今日</th><th>本周</th><th>本月</th><th>今年以来</th>
-              </tr>
-            </thead>
-            <tbody>
-              {C.map((c) => {
-                // 实时价只换掉「最新」这一端, 三个基准仍是 us_data.js 里那根 bar 的:
-                //   新涨跌幅 = (1 + p) × 实时价 / 那根收盘 − 1。p 只有两位小数, 误差 ±0.005pp
-                const now = live[c.code];
-                const k = now ? now / c.close : 1;
-                const p = (v) => (1 + v / 100) * k - 1;
-                return (
-                  <tr key={c.code}>
-                    <td className="nm">
-                      {c.name}
-                      <span className="cd">{c.code}</span>
-                    </td>
-                    <td>{(now || c.close).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                    {/* 「今日」与另外三列同一套代数: 基准都是 us_data.js 那根 bar 之前的某根收盘,
-                        只有分子换成实时价。旧格式没带 day -> NaN -> Pct 给 — */}
-                    {["day", "wtd", "mtd", "ytd"].map((key) => (
-                      <Pct key={key} v={p(c[key]) * 100} />
-                    ))}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="bond crypto">
+          {C.map((c) => {
+            // 实时价只换掉「最新」这一端, 三个基准仍是 us_data.js 里那根 bar 的:
+            //   新涨跌幅 = (1 + p) × 实时价 / 那根收盘 − 1。p 只有两位小数, 误差 ±0.005pp
+            const now = live[c.code];
+            const k = now ? now / c.close : 1;
+            // 旧格式没带 day -> NaN -> 给 — 而不是渲染成 NaN
+            const p = (v) => ((1 + v / 100) * k - 1) * 100;
+            const cell = (v) =>
+              Number.isFinite(v) ? <b className={v >= 0 ? "pos" : "neg"}>{fmt(v)}</b> : <b>—</b>;
+            const day = p(c.day);
+            return (
+              <div className="b" key={c.code}>
+                <span className="t">
+                  {c.name} · {c.code}
+                </span>
+                <span className="y">
+                  {(now || c.close).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  {Number.isFinite(day) ? (
+                    <small className={day >= 0 ? "pos" : "neg"}>{fmt(day)}</small>
+                  ) : (
+                    <i>—</i>
+                  )}
+                </span>
+                <span className="m">
+                  {[
+                    ["本周", "wtd"],
+                    ["本月", "mtd"],
+                    ["今年以来", "ytd"],
+                  ].map(([label, key]) => (
+                    <span key={key}>
+                      <i>{label}</i>
+                      {cell(p(c[key]))}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

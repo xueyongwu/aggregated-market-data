@@ -474,6 +474,11 @@ table.dt {
 .bond .m { color: var(--ink2); font-size: 12px; }
 .bond .m i { color: var(--muted); font-style: normal; margin-left: 6px; }
 
+/* 加密卡片复用 .bond 的栅格+大数字, 只改「本周/本月/今年以来」那行: 三项并排, 标签在前 */
+.bond.crypto .m { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.bond.crypto .m i { margin: 0 4px 0 0; }
+.bond.crypto .m b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
 @media (max-width: 680px) {
   .wrap { padding: 16px 12px 40px; }
   .sub { font-size: 11px; white-space: nowrap; gap: 6px; }
@@ -482,8 +487,16 @@ table.dt {
   .card { padding: 12px 6px 6px; }
   .card h2 span.dot { display: block; margin-top: 3px; }  /* 副标题另起一行, 否则从句子中间折断 */
   .card h2 span.dot::before { content: none; }
-  /* 两列各占半屏塞不下券名+剩余+成交 -> 改上下堆叠, 每只券独占整行 */
-  .bond { grid-template-columns: 1fr; gap: 16px; padding: 8px 6px 6px; }
+  /* 两列各占半屏塞不下券名+剩余+成交 -> 改上下堆叠, 每只券独占整行。
+     堆叠后两项挤在同一个卡框里读起来像一整块 -> 外层卡去皮只留标题, 每项自己成卡 */
+  .card:has(.bond) { background: none; border: 0; padding: 0; margin-bottom: 14px; }
+  .bond { grid-template-columns: 1fr; gap: 10px; padding: 10px 0 0; }
+  .bond .b {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 12px;
+  }
 }
 
 /* ========== pane 切换 tab(纳指QDII 页) ========== */
