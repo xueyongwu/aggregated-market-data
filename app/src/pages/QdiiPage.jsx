@@ -78,6 +78,7 @@ function NqCard({ theme }) {
     item ? { pct: item.pct, at: item.partial ? item.t : item.d } : null,
   );
   const [spin, setSpin] = useState(false);
+  const seen = useRef(""); // 上轮末根 bar 的原样, 用来跳过没变化的那几轮重绘
 
   // 静态 path + 进行中的实时 tail 一起铺进固定框
   const render = (live) => {
@@ -183,20 +184,30 @@ function NqCard({ theme }) {
   const refresh = (cb) =>
     jsonp(NQ_URL, () => {
       const r = window.t.minLine_1d;
-      nqRebase(item, r); // 过了 15:00 先换窗口, 再画
-      render(r);
-      if (item.partial) {
-        const b = r[r.length - 1]; // 半程点: base 固定, 只重算实时价
-        item.pct = +((nqPx(b) / item.base - 1) * 100).toFixed(2) + 0;
-        item.t = nqTs(b).slice(0, 16); // "2026-07-20 11:35:00" -> "2026-07-20 11:35"
+      // 接口没有增量, 每轮都是全量 1300+ 根 —— 省不掉流量, 但末根没动就没什么可画的:
+      // 新点 60s 才来一个, 而 render 是 1300 点的整幅 setOption。数组直接转串比字段,
+      // 时间戳和价一起认(盘中修订也算变)。只看末根: 上游改中段 bar 没见过, 也无所谓。
+      const tail = String(r[r.length - 1]);
+      if (tail !== seen.current) {
+        seen.current = tail;
+        nqRebase(item, r); // 过了 15:00 先换窗口, 再画
+        render(r);
+        if (item.partial) {
+          const b = r[r.length - 1]; // 半程点: base 固定, 只重算实时价
+          item.pct = +((nqPx(b) / item.base - 1) * 100).toFixed(2) + 0;
+          item.t = nqTs(b).slice(0, 16); // "2026-07-20 11:35:00" -> "2026-07-20 11:35"
+        }
+        setHero({ pct: item.pct, at: item.partial ? item.t : item.d });
       }
-      setHero({ pct: item.pct, at: item.partial ? item.t : item.d });
-      cb?.();
+      cb?.(); // 手动刷新的转圈不看有没有变化, 照样收尾
     });
 
   useEffect(() => {
     if (!item) return;
-    // 数据源延迟约 1 分钟, 8s 只是更快显现新 bar; 同 ETF 逐笔快照节奏。
+    // 30s: MinLine 只有 1min bar 且延迟约 1 分钟, 新点 60s 一个; 每次还是全量回 1300+ 根
+    // (68KB 裸 / 14KB gzip, 无增量接口)。实测末根 bar 的盘中修订约 0.4 点 = 0.0013%,
+    // 低于 hero 两位小数的分辨率, 再快也不会改变屏幕上的数字 —— 别照抄下面溢价快照那条
+    // 8s(那是逐笔、~1KB、上游几秒一变, 不可比)。
     // 闭市(CME 每日 5:00-6:00 维护 + 周末)不轮询, 页面挂着过夜/过周末不空转 —— 但开页
     // 必取一次: 静态 path 只到上次 CI, 闭市时那一次补的正是收盘前的尾巴。
     // 手动刷新按钮不受门禁管。nqClosed 按设备本地时间判, 同本页其余时间逻辑。
@@ -204,7 +215,7 @@ function NqCard({ theme }) {
     return poll(() => {
       if (first || !nqClosed(new Date())) refresh();
       first = false;
-    }, 8000);
+    }, 30000);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
