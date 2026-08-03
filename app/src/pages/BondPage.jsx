@@ -31,11 +31,14 @@ export default function BondPage() {
           try {
             const rec = (await (await fetch(CBT + b.code)).json()).records[0];
             if (!rec || !rec.dmiLatestContraRate) return b; // 当日尚无成交: 留着上次的值
+            // 单券查询不给累计成交量(回 "---"), 只有全市场那份列表有 —— 拿不到就留空
+            const vol = Math.round(+rec.dmiTtlTradedAmnt * 10) / 10;
             return {
               ...b,
               yield: +rec.dmiLatestContraRate,
               bp: rec.bpNum == null ? null : +rec.bpNum,
-              vol: Math.round(+rec.dmiTtlTradedAmnt * 10) / 10,
+              vol: Number.isFinite(vol) ? vol : null,
+              maturity: rec.termToMaturity || b.maturity,
               time: rec.showDate,
             };
           } catch {
@@ -74,7 +77,7 @@ export default function BondPage() {
               <span className="m">
                 {b.name}
                 <i>
-                  剩余 {b.maturity} · 成交 {b.vol} 亿
+                  剩余 {b.maturity} · 成交 {b.vol == null ? "—" : `${b.vol} 亿`}
                 </i>
               </span>
               <span className="t">{b.time.slice(5, 16)}</span>
