@@ -196,8 +196,15 @@ function NqCard({ theme }) {
 
   useEffect(() => {
     if (!item) return;
-    // 数据源延迟约 1 分钟, 8s 只是更快显现新 bar; 同 ETF 逐笔快照节奏
-    return poll(() => refresh(), 8000);
+    // 数据源延迟约 1 分钟, 8s 只是更快显现新 bar; 同 ETF 逐笔快照节奏。
+    // 闭市(CME 每日 5:00-6:00 维护 + 周末)不轮询, 页面挂着过夜/过周末不空转 —— 但开页
+    // 必取一次: 静态 path 只到上次 CI, 闭市时那一次补的正是收盘前的尾巴。
+    // 手动刷新按钮不受门禁管。nqClosed 按设备本地时间判, 同本页其余时间逻辑。
+    let first = true;
+    return poll(() => {
+      if (first || !nqClosed(new Date())) refresh();
+      first = false;
+    }, 8000);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -247,6 +254,13 @@ const QDII = [
   ["sz159660", "汇添富"], ["sz159501", "嘉实"], ["sh513870", "富国"], ["sz159696", "易方达"],
 ];
 const qAmt = (w) => (w >= 1e4 ? (w / 1e4).toFixed(2) + "亿" : Math.round(w) + "万");
+// 场内时段: 工作日 9:15(集合竞价) ~ 15:05(收盘后留点余量)。同 BondPage 的 bondOpen,
+// 按北京时间判不信浏览器时区(本页 NQ 那半边是按类目轴标签走本地时间, 两套不通用)。
+function aOpen() {
+  const t = new Date(Date.now() + new Date().getTimezoneOffset() * 6e4 + 288e5);
+  const m = t.getHours() * 60 + t.getMinutes();
+  return t.getDay() >= 1 && t.getDay() <= 5 && m >= 555 && m <= 905;
+}
 const QCOLS = [
   ["px", "现价"], ["chg", "涨跌幅"], ["prem", "溢价率"], ["amt", "成交额"],
   ["w", "本周"], ["m", "本月"], ["y", "今年以来"],
@@ -287,26 +301,29 @@ function QdiiCard() {
     return () => kill.forEach((f) => f());
   }, []);
 
-  useEffect(
-    () =>
-      poll(() => {
-        jsonp("https://qt.gtimg.cn/q=" + QDII.map((x) => x[0]).join(","), () => {
-          const out = [];
-          let stamp = "";
-          for (const [sym, name] of QDII) {
-            const f = (window["v_" + sym] || "").split("~");
-            const p = +f[3];
-            if (f.length < 80 || !p) continue; // 单只停牌/接口缺失: 跳过, 不拖垮整表
-            out.push({ code: sym.slice(2), name, px: p, chg: +f[32], prem: +f[77], amt: +f[37] });
-            stamp = f[30];
-          }
-          if (!out.length) return; // 全失败: 保留上一轮, 别闪成空表
-          setRows(out);
-          setTs(stamp);
-        });
-      }, 8000), // 同 EtfPage 逐笔快照节奏
-    [],
-  );
+  // 开页必取一次(整张表全靠快照, 没有静态兜底), 之后闭市不轮询。
+  // 节假日不判: 快照回上一交易日收盘, 值不变, 空转一天可接受。
+  useEffect(() => {
+    let first = true;
+    return poll(() => {
+      if (!first && !aOpen()) return;
+      first = false;
+      jsonp("https://qt.gtimg.cn/q=" + QDII.map((x) => x[0]).join(","), () => {
+        const out = [];
+        let stamp = "";
+        for (const [sym, name] of QDII) {
+          const f = (window["v_" + sym] || "").split("~");
+          const p = +f[3];
+          if (f.length < 80 || !p) continue; // 单只停牌/接口缺失: 跳过, 不拖垮整表
+          out.push({ code: sym.slice(2), name, px: p, chg: +f[32], prem: +f[77], amt: +f[37] });
+          stamp = f[30];
+        }
+        if (!out.length) return; // 全失败: 保留上一轮, 别闪成空表
+        setRows(out);
+        setTs(stamp);
+      });
+    }, 8000); // 同 EtfPage 逐笔快照节奏
+  }, []);
 
   // 区间涨跌幅在这里算: 基准是异步到的, 现价每 8s 变。缺基准 -> NaN -> 渲染成 —
   const full = rows.map((r) => {
