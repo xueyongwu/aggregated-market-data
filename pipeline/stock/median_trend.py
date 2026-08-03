@@ -39,7 +39,13 @@ def save_raw(df: pd.DataFrame) -> pd.DataFrame:
     保底 30 天是为跨年: 元旦后单按今年切会清空缓存, 增量窗口全判缺口退回 baostock
     逐股慢路径, nq_overnight 也拿不到跨年的前一交易日。
     年份取自数据本身而非 now(), CI 是 UTC 时区。
+
+    date 列先归一: 无缓存时 fetch_history/update_today_tencent 拿
+    pd.DataFrame(columns=[...]) 当空占位, 它是 object dtype, concat 进来整列就成了
+    object(元素还是 Timestamp, 所以跟 Timestamp 比不报错)——main 末尾拿字符串比
+    "%Y-01-01" 时才炸, 落盘再读回又被 pyarrow 修回 datetime64, 只有全量那一趟现形。
     """
+    df = df.assign(date=pd.to_datetime(df["date"]))
     last = df["date"].max()
     cut = min(last - pd.Timedelta(days=30), pd.Timestamp(year=last.year, month=1, day=1))
     df = df[df["date"] >= cut]

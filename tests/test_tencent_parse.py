@@ -158,6 +158,23 @@ def save_raw_range(dates):
             mt.RAW = orig
 
 
+def test_save_raw_normalizes_object_dates():
+    """无缓存那趟: 空占位帧把 date 列 concat 成 object, save_raw 要归一回 datetime64。
+    不归一的话 main 末尾 df["date"] >= "%Y-01-01" 直接 TypeError(全量重拉 13 分钟后才炸)。"""
+    orig = mt.RAW
+    with tempfile.TemporaryDirectory() as tmp:
+        mt.RAW = Path(tmp) / "raw.parquet"
+        empty = pd.DataFrame(columns=["date", "code", "pct"])  # object dtype
+        real = pd.DataFrame({"date": pd.to_datetime(["2026-07-21", "2026-07-22"]),
+                             "code": "sh.600000", "pct": 1.0})
+        try:
+            df = mt.save_raw(pd.concat([empty, real], ignore_index=True))
+        finally:
+            mt.RAW = orig
+    assert df["date"].dtype.kind == "M", df["date"].dtype
+    assert (df["date"] >= "2026-01-01").all()  # main 末尾就是这么比的
+
+
 def test_save_raw_cuts_to_year_start():
     """年中: 切到今年 1 月 1 日, 今年的一天不少。"""
     lo, hi = save_raw_range(pd.date_range("2025-07-16", "2026-07-30", freq="D"))
