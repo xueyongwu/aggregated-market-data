@@ -21,15 +21,26 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      # 同 update.yml 的 prefix: 这里只读 daily_pctchg(交易日历)、只写 nq_min。
+      - uses: actions/cache@v4
+        with:
+          path: |
+            cache/daily_pctchg.parquet
+            cache/nq_min.parquet
+          key: stock-cache-${{ github.run_id }}
+          restore-keys: stock-cache-
       - run: pip install pandas pyarrow requests
       - run: python -m pipeline.stock.nq_overnight
+        # 未命中缓存时 trading_days() 读不到 daily_pctchg 会抛 —— 不让整个 job 红,
+        # 等 daily-update 那趟把缓存建回来。A股休市期间这里本来也出不了隔夜数。
+        continue-on-error: true
       - name: commit & push
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add app/src/data/nq_data.js cache/nq_min.parquet
+          git add app/src/data/nq_data.js
           git diff --cached --quiet && exit 0
           git commit -m "chore: nq night update $(date -u +%F)"
           git pull --rebase

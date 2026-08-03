@@ -24,7 +24,8 @@ URL = ("https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20t=/"
 MIN_BARS = CACHE / "nq_min.parquet"
 # 只画最新一个隔夜窗口, bar 留够它就行: 常态1天, 跨周末3天, 国庆最长8天(09-30 15:00
 # -> 10-08 09:30)。15 天是这条底线 + nq_night.yml 漏跑一两次的余量, 同时给缓存封顶
-# ——不裁的话每工作日 +~1300 行, 而两个 workflow 每天各重写提交一次整份 parquet。
+# ——不裁的话每工作日 +~1300 行无上限增长, 而这份不进 git, 每次 CI 走 actions/cache
+# 整份存取(见 .gitignore), 两个 workflow 每天各存回一次。
 KEEP_DAYS = 15
 
 

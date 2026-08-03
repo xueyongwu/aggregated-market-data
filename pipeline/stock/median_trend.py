@@ -35,7 +35,7 @@ def save_raw(df: pd.DataFrame) -> pd.DataFrame:
     """滚动裁剪后落盘。返回裁剪后的表。
 
     上游只需要今年以来(导出)和最近 10 天(增量窗口/代码表降级), 更早的纯占体积——
-    CI 每个工作日全量重写提交一次, parquet 二进制不 delta 压缩, 每次存整份。
+    这份不进 git, 每次 CI 走 actions/cache 整份存取(见 .gitignore)。
     保底 30 天是为跨年: 元旦后单按今年切会清空缓存, 增量窗口全判缺口退回 baostock
     逐股慢路径, nq_overnight 也拿不到跨年的前一交易日。
     年份取自数据本身而非 now(), CI 是 UTC 时区。
@@ -367,10 +367,14 @@ def main():
     ap.add_argument("--update", action="store_true", help="收盘后追加今日快照")
     a = ap.parse_args()
 
-    if a.update:
+    # --update 但缓存没了 -> 落到下面的全量分支。缓存现在存 actions/cache(见 .gitignore),
+    # 7 天不访问会被逐出, 春节休市那一周必现。走增量的话 update_incremental 只让 baostock
+    # 补最近 10 天窗口, 导出的 median_data.js 就从「今年以来」静默塌成 10 天
+    # —— sanity_check 不查条数, 塌了照样 commit, 之后每天 +1 天要一整年才长回来。
+    if a.update and RAW.exists():
         # 盘中快照会被当成收盘价写死(次日的 --update 只取新一天, 不回补), 故未收盘不落库
         now = pd.Timestamp.now(tz="Asia/Shanghai")
-        if a.end == now.strftime("%Y-%m-%d") and now.hour < 15 and RAW.exists():
+        if a.end == now.strftime("%Y-%m-%d") and now.hour < 15:  # 外层已保证有缓存
             print(f"{a.end} 尚未收盘({now:%H:%M}), 不落库, 仅用缓存导出。", flush=True)
             df = pd.read_parquet(RAW)
         else:

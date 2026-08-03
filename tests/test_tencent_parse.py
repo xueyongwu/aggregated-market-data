@@ -1,4 +1,5 @@
 """腾讯快照解析 + baostock 不可用降级 自检: python -m tests.test_tencent_parse"""
+import sys
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -112,6 +113,36 @@ def test_degrade_no_quotes_writes_nothing():
     """baostock 挂 + 腾讯也没当日数据(如节假日): 不写盘, 也不去 baostock 回退。"""
     got, _ = with_dead_baostock(None, lambda: mt.update_incremental("2026-07-22"))
     assert got is None, got
+
+
+def test_update_without_cache_refetches_all():
+    """缓存丢了(daily_pctchg 走 actions/cache, 7 天不访问被逐出, 春节必现)还带 --update:
+    必须走全量重拉。走增量的话只补最近 10 天窗口, median_data.js 从「今年以来」
+    静默塌成 10 天 —— sanity_check 不查条数, 塌了照样 commit。"""
+    orig = (mt.RAW, mt.all_a_codes, mt.fetch_history, mt.update_incremental,
+            mt.export_data_js, sys.argv)
+    seen = {}
+
+    def fake_full(codes, start, end, skip_done=True):
+        seen["full"] = (start, end)
+        return pd.DataFrame({"date": [pd.Timestamp.now().normalize()],
+                             "code": ["sh.600000"], "pct": [1.0]})
+
+    with tempfile.TemporaryDirectory() as tmp:
+        mt.RAW = Path(tmp) / "missing.parquet"  # 缓存不存在
+        mt.all_a_codes = lambda day: ["sh.600000"]
+        mt.fetch_history = fake_full
+        mt.update_incremental = lambda end: seen.setdefault("incremental", True)
+        mt.export_data_js = lambda df, out: seen.setdefault("exported", len(df))
+        sys.argv = ["median_trend", "--update", "--end", "2026-07-22"]
+        try:
+            mt.main()
+        finally:
+            (mt.RAW, mt.all_a_codes, mt.fetch_history, mt.update_incremental,
+             mt.export_data_js, sys.argv) = orig
+    assert "incremental" not in seen, seen
+    assert seen.get("full", ("", ""))[0].endswith("-01-01"), seen  # 从年初拉, 不是 10 天窗口
+    assert seen.get("exported") == 1, seen
 
 
 def save_raw_range(dates):

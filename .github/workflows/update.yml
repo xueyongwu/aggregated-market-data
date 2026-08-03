@@ -18,6 +18,18 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      # 这两份不进 git(每工作日被全量重写提交 2~3 次, 一年 ~1.3G 进 .git), 走 cache。
+      # key 带 run_id 保证每次都存新的, restore-keys 前缀取最近一份;
+      # nq_night.yml 用同一 prefix, 它只读 daily_pctchg、只写 nq_min, 存回去不会回退。
+      # 未命中不是故障: median_trend 无缓存自动走全量重拉(慢 10-20 分钟但数据完整),
+      # nq_min 缺了断一两天曲线, 次日 5:00 那趟补回。
+      - uses: actions/cache@v4
+        with:
+          path: |
+            cache/daily_pctchg.parquet
+            cache/nq_min.parquet
+          key: stock-cache-${{ github.run_id }}
+          restore-keys: stock-cache-
       - run: pip install baostock pandas pyarrow akshare requests  # requests 是腾讯快照主源用的, 别靠 akshare 传递依赖
       - run: python -m pipeline.stock.median_trend --update
       - run: python -m pipeline.stock.intraday_cache 159696
@@ -36,7 +48,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add app/src/data/median_data.js app/src/data/etf_data.js app/src/data/idx_data.js \
                   app/src/data/nq_data.js app/src/data/bond_data.js \
-                  cache/daily_pctchg.parquet cache/intraday_159696_1min.parquet cache/nq_min.parquet cache/st_codes.json
+                  cache/intraday_159696_1min.parquet cache/st_codes.json
           git diff --cached --quiet && exit 0
           git commit -m "chore: daily data update $(date -u +%F)"
           git pull --rebase
