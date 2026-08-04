@@ -1,4 +1,4 @@
-// 国债活跃券：银行间 10Y/30Y 当日成交量最大的券，60s 轮询日内刷新。
+// 国债活跃券：银行间 10Y/30Y 当日成交量最大的券，3s 轮询日内刷新。
 import { useEffect, useState } from "react";
 import { poll } from "../jsonp";
 import { BOND_ACTIVE as BD } from "../data/bond_data";
@@ -47,7 +47,7 @@ export default function BondPage() {
         }),
       );
       setItems(next);
-    }, 60000); // 债券报价比股票慢, 1 分钟够
+    }, 3000); // 单券 845B, 实测 6 req/s 连发不限速; 后台标签页由 poll() 自己跳过
     // items 只在 poll 里被整体替换, 依赖它会每次重挂定时器 —— 只在挂载时装一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

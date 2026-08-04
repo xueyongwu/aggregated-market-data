@@ -1,5 +1,5 @@
 """bond_rate 选券逻辑自检(离线, 合成 records)。跑: python -m tests.test_bond_rate"""
-from pipeline.stock.bond_rate import is_treasury, pick, years
+from pipeline.stock.bond_rate import is_treasury, pick, today_rows, years
 
 
 def rec(name, term, vol, rate="1.70", code="000000", bp=-0.5):
@@ -56,6 +56,20 @@ def test_absurd_yield_raises():
     except RuntimeError:
         return
     raise AssertionError("收益率出格时应抛 RuntimeError")
+
+
+def test_today_rows_filters_stale_session():
+    # 节假日跑: 接口回上个交易日那份 -> 全过滤掉, main() 据此跳过写盘
+    rs = [rec("26附息国债10", "9.79Y", "612.8")]  # showDate 2026-07-31
+    assert today_rows(rs, "2026-08-03") == []
+    assert len(today_rows(rs, "2026-07-31")) == 1
+
+
+def test_today_rows_keeps_only_today():
+    # 混了陈旧行时也不能让它进 pick(), 否则挑出上个交易日的价
+    stale = rec("26附息国债09", "9.5Y", "9999")           # 量最大但是旧的
+    fresh = dict(rec("26附息国债10", "9.79Y", "612.8"), showDate="2026-08-03 17:35:08")
+    assert pick(today_rows([stale, fresh], "2026-08-03"), 9.0, 10.5)["name"] == "26附息国债10"
 
 
 if __name__ == "__main__":

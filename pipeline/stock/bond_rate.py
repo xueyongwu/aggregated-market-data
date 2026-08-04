@@ -38,6 +38,16 @@ def is_treasury(name: str) -> bool:
     return "国债" in name and "贴现" not in name
 
 
+def today_rows(records: list[dict], today: str) -> list[dict]:
+    """只留当日成交。节假日/周末接口回的是上个交易日那份, 全过滤掉即空。
+
+    交易日历不查 baostock: 为一张卡片多挂一个会整站挂掉的依赖不划算(2026-07-22 真挂过,
+    login 卡 2 分钟才抛), 而每行自带 showDate —— 数据自己就能回答今天是不是交易日。
+    顺带保证挑出来的券不会是上个交易日的陈旧价。
+    """
+    return [r for r in records if str(r.get("showDate", "")).startswith(today)]
+
+
 def pick(records: list[dict], lo: float, hi: float) -> dict:
     """桶内成交量最大的国债 = 活跃券。桶内无券即抛错, 好过悄悄少一行。"""
     best = None
@@ -65,7 +75,12 @@ def pick(records: list[dict], lo: float, hi: float) -> dict:
 def main():
     r = requests.get(API, params=PARAMS, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
     r.raise_for_status()
-    records = r.json()["records"]
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    today = now.strftime("%Y-%m-%d")
+    records = today_rows(r.json()["records"], today)
+    if not records:
+        print(f"{today} 无当日成交(非交易日或尚未开盘), 跳过写盘")
+        return
     items = []
     for label, lo, hi in BUCKETS:
         it = pick(records, lo, hi) | {"term": label}
@@ -73,7 +88,6 @@ def main():
         print(f"{label:<4} {it['name']:<14} {it['yield']:.4f}%  "
               f"{it['bp']:+.2f}bp  剩余{it['maturity']}  {it['vol']}亿  {it['time']}", flush=True)
 
-    now = datetime.now(ZoneInfo("Asia/Shanghai"))
     out = WEB_DATA / "bond_data.js"
     payload = {"updated": now.strftime("%Y-%m-%d %H:%M"), "items": items}
     out.write_text("export const BOND_ACTIVE = " + json.dumps(payload, ensure_ascii=False) + ";\n",

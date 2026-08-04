@@ -28,9 +28,13 @@ export function aOpen() {
   return t.getDay() >= 1 && t.getDay() <= 5 && m >= 555 && m <= 905;
 }
 
-/** 挂一个轮询：立刻跑一次，之后每 ms 一次。返回 clearInterval 用的清理函数。 */
+/** 挂一个轮询：立刻跑一次，之后每 ms 一次。返回 clearInterval 用的清理函数。
+ *
+ * 后台标签页跳过：浏览器本就把不可见标签的 setInterval 钳到 ≥1 分钟，但钳多少不确定
+ * （放音频的标签、被遮挡但"可见"的窗口都不一样）。显式判一下，请求数才是确定的。
+ * 所有调用方都是"刷新屏幕上的实时价"，看不见时不刷没有副作用，回到前台下一拍即恢复。 */
 export function poll(fn, ms) {
   fn();
-  const id = setInterval(fn, ms);
+  const id = setInterval(() => document.hidden || fn(), ms);
   return () => clearInterval(id);
 }
