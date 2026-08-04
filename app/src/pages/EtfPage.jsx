@@ -1,11 +1,11 @@
 // 159696 走势：分时（点日K可切历史日）+ 日K。
 //
 // 命令式：两个实时源都没有 CORS 头，只能 <script> 注入，回调里直接改模块级的 ETF_DATA
-// 再重画图。硬搬进 React state 得把每根 bar 都变成不可变更新，8s 一轮的轮询下毫无收益。
+// 再重画图。硬搬进 React state 得把每根 bar 都变成不可变更新，3s 一轮的轮询下毫无收益。
 import { useEffect, useRef, useState } from "react";
 import { echarts } from "../echarts";
 import { useTheme, vars } from "../theme";
-import { jsonp, poll } from "../jsonp";
+import { aOpen, jsonp, poll } from "../jsonp";
 import { COLORS, MOBILE, clampTip, fmtP, tip, yPrice } from "../chartBase";
 import { ETF_DATA as D } from "../data/etf_data";
 
@@ -203,8 +203,13 @@ export default function EtfPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme]);
 
+  // 两个轮询都是「开页取一次, 之后闭市不轮询」: etf_data.js 可能停在上次 CI(15:10),
+  // 15:05~收盘那几分钟和 CI 挂掉的日子靠这一次补齐; 之后收盘价不再变, 空转纯浪费。
   useEffect(() => {
+    let firstLive = true, firstSnap = true;
     const stopLive = poll(() => {
+      if (!firstLive && !aOpen()) return;
+      firstLive = false;
       jsonp(ETF_URL, () => {
         const raw = window.e;
         if (!raw?.length) return;
@@ -235,6 +240,8 @@ export default function EtfPage() {
 
     // 只更新今日 K 柱收/高/低 + 分时最后一点; 今日尚未由 1min 轮询建立则跳过
     const stopSnap = poll(() => {
+      if (!firstSnap && !aOpen()) return;
+      firstSnap = false;
       jsonp(SNAP_URL, () => {
         const f = (window.v_sz159696 || "").split("~");
         if (f.length < 35) return;
@@ -251,7 +258,7 @@ export default function EtfPage() {
           setHead((h) => ({ ...h, at: `${day} ${f[30].slice(8, 10)}:${f[30].slice(10, 12)}:${f[30].slice(12, 14)}` }));
         }
       });
-    }, 8000); // 逐笔快照, 每 8s 推当前价
+    }, 3000); // 逐笔快照推当前价。3s = 沪深 Level-1 切片间隔, 再快只会拿回同一个 [30] 时间戳
 
     return () => { stopLive(); stopSnap(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps

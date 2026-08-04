@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { echarts } from "../echarts";
 import { useTheme, vars } from "../theme";
-import { jsonp, poll } from "../jsonp";
+import { aOpen, jsonp, poll } from "../jsonp";
 import { COLORS, MOBILE, clampTip, fmtP, tip, yPrice } from "../chartBase";
 import { Pct, useSort } from "../table";
 import { NQ_OVERNIGHT as NQ } from "../data/nq_data";
@@ -214,7 +214,7 @@ function NqCard({ theme }) {
     // 30s: MinLine 只有 1min bar 且延迟约 1 分钟, 新点 60s 一个; 每次还是全量回 1300+ 根
     // (68KB 裸 / 14KB gzip, 无增量接口)。实测末根 bar 的盘中修订约 0.4 点 = 0.0013%,
     // 低于 hero 两位小数的分辨率, 再快也不会改变屏幕上的数字 —— 别照抄下面溢价快照那条
-    // 8s(那是逐笔、~1KB、上游几秒一变, 不可比)。
+    // 3s(那是 Level-1 逐笔、6KB、上游 3s 一切片, 不可比)。
     // 闭市(CME 每日 5:00-6:00 维护 + 周末)不轮询, 页面挂着过夜/过周末不空转 —— 但开页
     // 必取一次: 静态 path 只到上次 CI, 闭市时那一次补的正是收盘前的尾巴。
     // 手动刷新按钮不受门禁管。nqClosed 按设备本地时间判, 同本页其余时间逻辑。
@@ -272,13 +272,7 @@ const QDII = [
   ["sz159660", "汇添富"], ["sz159501", "嘉实"], ["sh513870", "富国"], ["sz159696", "易方达"],
 ];
 const qAmt = (w) => (w >= 1e4 ? (w / 1e4).toFixed(2) + "亿" : Math.round(w) + "万");
-// 场内时段: 工作日 9:15(集合竞价) ~ 15:05(收盘后留点余量)。同 BondPage 的 bondOpen,
-// 按北京时间判不信浏览器时区(本页 NQ 那半边是按类目轴标签走本地时间, 两套不通用)。
-function aOpen() {
-  const t = new Date(Date.now() + new Date().getTimezoneOffset() * 6e4 + 288e5);
-  const m = t.getHours() * 60 + t.getMinutes();
-  return t.getDay() >= 1 && t.getDay() <= 5 && m >= 555 && m <= 905;
-}
+// 场内时段门禁 aOpen 在 jsonp.js(EtfPage 共用)。本页 NQ 那半边是按类目轴标签走本地时间, 两套不通用。
 const QCOLS = [
   ["px", "现价"], ["chg", "涨跌幅"], ["prem", "溢价率"], ["amt", "成交额"],
   ["w", "本周"], ["m", "本月"], ["y", "今年以来"],
@@ -321,6 +315,9 @@ function QdiiCard() {
 
   // 开页必取一次(整张表全靠快照, 没有静态兜底), 之后闭市不轮询。
   // 节假日不判: 快照回上一交易日收盘, 值不变, 空转一天可接受。
+  // 3s = 沪深 Level-1 快照切片的间隔, 上游本身就这个节奏, 再快只会拿回同一个 [30] 时间戳。
+  // 代价 6.1KB/次 × 21000s 窗口 ≈ 7000 请求/天/标签页; 真被限流就调回 8000(只是现价/涨跌幅
+  // 跳得慢些, 溢价率那列的 IOPV 本来就跟不上这个分辨率)。
   useEffect(() => {
     let first = true;
     return poll(() => {
@@ -340,10 +337,10 @@ function QdiiCard() {
         setRows(out);
         setTs(stamp);
       });
-    }, 8000); // 同 EtfPage 逐笔快照节奏
+    }, 3000);
   }, []);
 
-  // 区间涨跌幅在这里算: 基准是异步到的, 现价每 8s 变。缺基准 -> NaN -> 渲染成 —
+  // 区间涨跌幅在这里算: 基准是异步到的, 现价每 3s 变。缺基准 -> NaN -> 渲染成 —
   const full = rows.map((r) => {
     const b = base[r.code] || {};
     return { ...r, w: (r.px / b.w - 1) * 100, m: (r.px / b.m - 1) * 100, y: (r.px / b.y - 1) * 100 };

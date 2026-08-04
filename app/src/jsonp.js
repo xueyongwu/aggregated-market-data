@@ -20,6 +20,14 @@ export function jsonp(src, onload) {
   return () => s.remove();
 }
 
+// 场内时段: 工作日 9:15(集合竞价) ~ 15:05(收盘后留点余量)。
+// 按北京时间判不信浏览器时区。节假日不判 —— 快照回上一交易日收盘, 值不变, 空转一天可接受。
+export function aOpen() {
+  const t = new Date(Date.now() + new Date().getTimezoneOffset() * 6e4 + 288e5);
+  const m = t.getHours() * 60 + t.getMinutes();
+  return t.getDay() >= 1 && t.getDay() <= 5 && m >= 555 && m <= 905;
+}
+
 /** 挂一个轮询：立刻跑一次，之后每 ms 一次。返回 clearInterval 用的清理函数。 */
 export function poll(fn, ms) {
   fn();
