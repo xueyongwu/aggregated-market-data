@@ -45,7 +45,7 @@ def main():
     code = sys.argv[1] if len(sys.argv) > 1 else "159696"
     path = CACHE / f"intraday_{code}_1min.parquet"
 
-    from median_trend import is_trading_day
+    from pipeline.stock.median_trend import is_trading_day
     today = pd.Timestamp.now(tz="Asia/Shanghai").strftime("%Y-%m-%d")
     if not is_trading_day(today):
         print(f"{today} 非交易日, 跳过")
