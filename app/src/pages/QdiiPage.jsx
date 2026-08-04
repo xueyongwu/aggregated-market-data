@@ -92,6 +92,7 @@ function NqCard({ theme }) {
     const c = t.map((l) => (m.has(l) ? m.get(l) : null)); // 空槽 null(右侧留空)
     // 同 ETF 分时: 围绕基准(0=上一A股收盘)对称定界, 3等分
     const dev = Math.max(...c.filter((v) => v != null).map(Math.abs)) || 1;
+    const noon = t.find((l) => l.endsWith("11:30")); // A股上午收盘, 窗口内只有一个
     const C = vars(...COLORS);
     chart.current.setOption(
       {
@@ -112,11 +113,17 @@ function NqCard({ theme }) {
             fontSize: 11,
             formatter: (v) => v.slice(-5), // 只显 HH:MM
             interval: (i, v) =>
-              i === 0 || i === t.length - 1 ||
-              (/:00$/.test(v) && +v.slice(-5, -3) % (MOBILE ? 6 : 3) === 0),
+              i === 0 || i === t.length - 1 || v === noon ||
+              (/:00$/.test(v) && !v.endsWith("12:00") && // 12:00 离 11:30 太近, 让位
+                +v.slice(-5, -3) % (MOBILE ? 6 : 3) === 0),
           },
         },
-        series: [{ data: c }],
+        series: [
+          {
+            data: c,
+            markLine: { data: [{ yAxis: 0 }, ...(noon ? [{ xAxis: noon }] : [])] },
+          },
+        ],
       },
       { replaceMerge: [] },
     );
