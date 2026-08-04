@@ -75,6 +75,13 @@ cd app && pnpm lint     # eslint(当前零 error，别放宽)
 写在 `app/src/data/` 下（路径统一走 `pipeline/paths.py` 的 `WEB_DATA`）。两条连带影响：
 1. **数据变了必须重新构建才上线** —— 所以四条抓取 workflow 提交完都显式 `gh workflow run deploy.yml`，
    GITHUB_TOKEN 推的 commit 不会自动触发别的 workflow，少这一步页面永远是旧的。
+   **`deploy.yml` 的 checkout 必须带 `ref: main`，别删。** workflow_dispatch 下 checkout 默认取
+   `github.sha` —— 那是 dispatch 时刻 GitHub 解析出的 SHA，而抓取 workflow 是「push 完隔 2~3 秒
+   立刻 `gh workflow run`」，赶上复制延迟就解析成 push 前那个 commit，**deploy 绿着却构建了上一版
+   数据**。2026-08-04 实际发生：nq night 的 commit 没上线，页面吃的还是 6 小时前那份 `nq_data.js`，
+   NQ 分时 00:43~06:00 断档（06:00 之后是前端实时 minLine 补的，所以只断中间那截，很像数据源问题）。
+   同期另外 4 次同样 2~3 秒间隔都侥幸赢了，是竞态不是必现。给了 `ref` 就是 job 起来时再解析 tip。
+   排查入口：`gh run list --workflow=deploy.yml --json headSha` 对一眼那次 deploy 构建的是哪个 commit。
 2. `stock/us_perf.py` / `stock/index_perf.py` 的降级读回（`last()` / `last_good()`）按 `t.index("=")`…`t.rindex(";")`
    切自己上次的输出，`export const X = ` 照样命中第一个 `=`，没改这两个函数。**别在文件开头加带 `=` 或 `;` 的注释。**
 
