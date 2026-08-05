@@ -1,4 +1,4 @@
-// A股宽基指数：13 个宽基/特色指数今年以来涨跌幅排名条形图。
+// 宽基指数：15 个宽基/特色/港股指数今年以来涨跌幅排名条形图。
 import { useEffect, useRef } from "react";
 import { echarts } from "../echarts";
 import { useTheme, vars } from "../theme";

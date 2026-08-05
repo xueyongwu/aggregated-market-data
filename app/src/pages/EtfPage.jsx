@@ -203,7 +203,7 @@ export default function EtfPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme]);
 
-  // 两个轮询都是「开页取一次, 之后闭市不轮询」: etf_data.js 可能停在上次 CI(15:10),
+  // 两个轮询都是「开页取一次, 之后闭市不轮询」: etf_data.js 可能停在上次 CI(16:30),
   // 15:05~收盘那几分钟和 CI 挂掉的日子靠这一次补齐; 之后收盘价不再变, 空转纯浪费。
   useEffect(() => {
     let firstLive = true, firstSnap = true;

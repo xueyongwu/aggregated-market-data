@@ -1,7 +1,7 @@
 """宽基/特色指数今年以来涨跌幅 -> app/src/data/idx_data.js (AStockPage 排名条形图)。
 
 数据源(免费):
-  tx      腾讯 web.ifzq.gtimg.cn 日线接口      沪深/北证指数, 一次请求给全年日线
+  tx      腾讯 web.ifzq.gtimg.cn 日线接口      沪深/北证/港股指数, 一次请求给全年日线
   sina    akshare stock_zh_index_daily        tx 的备源(akshare 封装随网站变, 故降为备)
   csindex akshare stock_zh_index_hist_csindex 中证2000(新浪/腾讯都无 932000)
   ths     同花顺 d.10jqka.com.cn 日线接口      微盘股/可转债(883418/883981, 同花顺自编指数)
@@ -34,6 +34,11 @@ INDICES = [  # (名称, 源(按序尝试), 代码)
     ("科创200", TX, "sh000699"),
     ("北证50", TX, "bj899050"),
     ("可转债", ("ths",), "883981"),
+    # 港股: 腾讯同一个 fqkline 接口, 代码前缀 hk。只挂 tx —— akshare 的 stock_zh_index_daily
+    # 是 A 股口径不认 hk 代码, 挂了也是白挂一次。注意是港币计价, 与 A 股同图看趋势可以,
+    # 严格说隔着汇率不同币种。
+    ("恒生指数", ("tx",), "hkHSI"),
+    ("恒生科技", ("tx",), "hkHSTECH"),
 ]
 
 

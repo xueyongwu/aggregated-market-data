@@ -5,10 +5,10 @@ name: us-market
 on:
   schedule:
     # UTC 07:20 = 北京 15:20, 抓美东前一交易日收盘。1-5 = UTC 周一~周五。
-    # 错开 daily-update 的 07:10 十分钟: 两条 workflow 都往 main 推, 同时刻跑会撞 push 竞态。
+    # 与 daily-update(08:30) 错开一小时: 两条 workflow 都往 main 推, 同时刻跑会撞 push 竞态。
     - cron: "20 7 * * 1-5"
     # UTC 22:00 周五 = 北京周六 06:00。美东周五盘北京周六 04:00 才收,
-    # 少了这条要等到北京周一 15:10 才上页面, 周末整整挂 2 天半的陈旧数据。
+    # 少了这条要等到北京周一 16:30 才上页面, 周末整整挂 2 天半的陈旧数据。
     - cron: "0 22 * * 5"
   workflow_dispatch:
 

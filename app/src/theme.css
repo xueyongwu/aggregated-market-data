@@ -448,13 +448,13 @@ table.dt {
 /* ========== 图表容器高度 ========== */
 .chart.main { height: 360px; }
 .chart.cum  { height: 240px; }
-.chart.idx  { height: 440px; }
+.chart.idx  { height: 500px; }
 .chart.kline { height: 380px; }
 .chart.intraday { height: 300px; }
 @media (max-width: 680px) {
   .chart.main { height: 280px; }
   .chart.cum  { height: 200px; }
-  .chart.idx  { height: 400px; }
+  .chart.idx  { height: 460px; }
   .chart.kline { height: 300px; }
   .chart.intraday { height: 260px; }
 }
