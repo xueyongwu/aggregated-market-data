@@ -265,7 +265,7 @@ function NqCard({ theme }) {
 // 响应是 GBK, 但只取数字字段(分隔符 ~ 是 ASCII), 名称走本地表, 免解码。
 // 名单 = smartbox 搜「纳斯达克/纳指」里的 QDII-ETF, 剔除 513290(生物科技)、
 // 159509(纳指科技 NDXT) —— 这两只跟踪的不是纳指100。只要 ETF, 不含场内 LOF。
-// 字段: [3]现价 [30]时间戳 [32]涨跌幅% [37]成交额(万) [77]溢价率%
+// 字段: [3]现价 [30]时间戳 [32]涨跌幅% [37]成交额(万) [44]流通市值(亿) [77]溢价率%
 const QDII = [
   ["sz159941", "广发"], ["sh513100", "国泰"], ["sh513300", "华夏"], ["sz159632", "华安"],
   ["sz159659", "招商"], ["sh513110", "华泰柏瑞"], ["sh513390", "博时"], ["sz159513", "大成"],
@@ -274,7 +274,7 @@ const QDII = [
 const qAmt = (w) => (w >= 1e4 ? (w / 1e4).toFixed(2) + "亿" : Math.round(w) + "万");
 // 场内时段门禁 aOpen 在 jsonp.js(EtfPage 共用)。本页 NQ 那半边是按类目轴标签走本地时间, 两套不通用。
 const QCOLS = [
-  ["px", "现价"], ["chg", "涨跌幅"], ["prem", "溢价率"], ["amt", "成交额"],
+  ["px", "现价"], ["chg", "涨跌幅"], ["prem", "溢价率"], ["amt", "成交额"], ["size", "规模"],
   ["w", "本周"], ["m", "本月"], ["y", "今年以来"],
 ];
 
@@ -330,7 +330,10 @@ function QdiiCard() {
           const f = (window["v_" + sym] || "").split("~");
           const p = +f[3];
           if (f.length < 80 || !p) continue; // 单只停牌/接口缺失: 跳过, 不拖垮整表
-          out.push({ code: sym.slice(2), name, px: p, chg: +f[32], prem: +f[77], amt: +f[37] });
+          // size = 流通市值 = 场内份额 × 现价。ETF 全流通, 即基金规模; 份额是上一交易日
+          // 确认份额(腾讯不盘中更新申赎), 且按现价不按净值 —— 高溢价时含溢价那部分, 不扣。
+          // 新上市当天可能为空 -> NaN -> 渲染成 —(useSort 里缺值恒排最后)。
+          out.push({ code: sym.slice(2), name, px: p, chg: +f[32], prem: +f[77], amt: +f[37], size: +f[44] || NaN });
           stamp = f[30];
         }
         if (!out.length) return; // 全失败: 保留上一轮, 别闪成空表
@@ -368,7 +371,7 @@ function QdiiCard() {
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={8} className="nm">加载中…</td>
+                <td colSpan={9} className="nm">加载中…</td>
               </tr>
             ) : (
               sorted.map((r) => (
@@ -381,6 +384,7 @@ function QdiiCard() {
                   <Pct v={r.chg} />
                   <Pct v={r.prem} />
                   <td>{qAmt(r.amt)}</td>
+                  <td>{Number.isFinite(r.size) ? r.size.toFixed(2) + "亿" : "—"}</td>
                   <Pct v={r.w} />
                   <Pct v={r.m} />
                   <Pct v={r.y} />
