@@ -2,8 +2,8 @@
 # 本地更新数据：抓取 → 自检 → 生成前端数据。改动留在工作区，由你 review 后自行提交。
 #
 # 用法：
-#   ./update.sh            全部（A股 + 纳指ETF + 指数 + 债 + 美股 + 房价）
-#   ./update.sh stock      只跑 A股 / ETF / 指数 / 债 / NQ / 美股
+#   ./update.sh            全部（A股 + 指数 + 债 + NQ + 美股 + 房价）
+#   ./update.sh stock      只跑 A股 / 指数 / 债 / NQ / 美股
 #   ./update.sh housing    只跑房价（可带年份：./update.sh housing 2025）
 #
 # 线上有对应的 workflow 各自按自己的节奏跑，这个脚本只是本地手动补一趟。
@@ -17,7 +17,6 @@ what=${1:-all}
 
 run_stock() {
   echo "▶ A股中位数..."   ; "$PY" -m pipeline.stock.median_trend --update
-  echo "▶ 159696 分时..." ; "$PY" -m pipeline.stock.intraday_cache 159696 || echo "  (跳过)"
   echo "▶ 宽基指数..."     ; "$PY" -m pipeline.stock.index_perf            || echo "  (跳过)"
   echo "▶ 国债活跃券..."   ; "$PY" -m pipeline.stock.bond_rate             || echo "  (跳过)"
   echo "▶ NQ 隔夜..."      ; "$PY" -m pipeline.stock.nq_overnight          || echo "  (跳过)"

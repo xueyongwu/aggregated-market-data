@@ -90,7 +90,7 @@ function NqCard({ theme }) {
       for (const b of live) m.set(nqTs(b).slice(5, 16), +((nqPx(b) / it.base - 1) * 100).toFixed(2) + 0);
     const t = nqFrame(it.path[0][0]);
     const c = t.map((l) => (m.has(l) ? m.get(l) : null)); // 空槽 null(右侧留空)
-    // 同 ETF 分时: 围绕基准(0=上一A股收盘)对称定界, 3等分
+    // 围绕基准(0=上一A股收盘)对称定界, 3等分
     const dev = Math.max(...c.filter((v) => v != null).map(Math.abs)) || 1;
     const noon = t.find((l) => l.endsWith("11:30")); // A股上午收盘, 窗口内只有一个
     const C = vars(...COLORS);
@@ -272,7 +272,7 @@ const QDII = [
   ["sz159660", "汇添富"], ["sz159501", "嘉实"], ["sh513870", "富国"], ["sz159696", "易方达"],
 ];
 const qAmt = (w) => (w >= 1e4 ? (w / 1e4).toFixed(2) + "亿" : Math.round(w) + "万");
-// 场内时段门禁 aOpen 在 jsonp.js(EtfPage 共用)。本页 NQ 那半边是按类目轴标签走本地时间, 两套不通用。
+// 场内时段门禁 aOpen 在 jsonp.js。本页 NQ 那半边是按类目轴标签走本地时间, 两套不通用。
 const QCOLS = [
   ["px", "现价"], ["chg", "涨跌幅"], ["prem", "溢价率"], ["amt", "成交额"], ["size", "规模"],
   ["w", "本周"], ["m", "本月"], ["y", "今年以来"],

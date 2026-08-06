@@ -8,7 +8,7 @@ A股交易日历直接取 cache/daily_pctchg.parquet 的日期列, 不额外调�
 
 用法: python -m pipeline.stock.nq_overnight
 输出: cache/nq_min.parquet (dt, price)
-      app/src/data/nq_data.js (NQ_OVERNIGHT, EtfPage 隔夜卡片; 只含最新一个窗口)
+      app/src/data/nq_data.js (NQ_OVERNIGHT, QdiiPage 隔夜卡片; 只含最新一个窗口)
 """
 import json
 import re
@@ -87,7 +87,7 @@ def overnight(bars: pd.DataFrame, tdays: list[pd.Timestamp]) -> list[dict]:
                       "pct": round((o / base - 1) * 100, 2) + 0,  # +0 归一化 -0.0
                       "base": round(float(base), 2), "partial": True})
 
-    # 最新窗口分时: 上一A股收盘(15:00)=0 到 窗口末尾, 供 EtfPage 隔夜分时图
+    # 最新窗口分时: 上一A股收盘(15:00)=0 到 窗口末尾, 供 QdiiPage 隔夜分时图
     if items:
         it = items[-1]
         b0, start, end = it["base"], it["_prev"] + pd.Timedelta(hours=15), it["_end"]

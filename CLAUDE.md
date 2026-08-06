@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概览
 
-八块看板合并成的一个单页应用：纳指QDII、159696 走势、美股纳指100、A股中位数、宽基指数、国债活跃券、加密货币、70城房价。
+七块看板合并成的一个单页应用：纳指QDII、美股纳指100、A股中位数、宽基指数、国债活跃券、加密货币、70城房价。
 由 `stock-analysis` 和 `housing-price-trends` 两个仓库整合而来。
 
 数据管道形状统一：**Python 抓取脚本 → `app/src/data/*.js`（ES module）→ React 页面**。
@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```
 pipeline/                 抓取管道（Python 包，一律 python -m 调用，仓库根要在 sys.path 上）
   paths.py                ROOT / CACHE / DATA / WEB_DATA，全是绝对路径，不看 CWD
-  stock/                  A股 / 场内ETF / 指数 / 国债 / 纳指期货 / 美股+加密
+  stock/                  A股 / 指数 / 国债 / 纳指期货 / 美股+加密
   housing/                统计局 70 城房价
 tests/                    离线自检（assert 脚本，无测试框架）
 app/                      Vite + React 前端
@@ -23,7 +23,6 @@ data/  cache/             房价原始数据 / parquet 缓存
 stock.median_trend    baostock/腾讯快照 → cache/daily_pctchg.parquet → median_data.js → MedianPage
 stock.index_perf      腾讯/新浪/中证/同花顺 ──────────────────────→ idx_data.js    → IndexPage
 stock.bond_rate       中国货币网 ────────────────────────────────→ bond_data.js   → BondPage
-stock.intraday_cache  新浪 1min bar → cache/intraday_*.parquet ──→ etf_data.js    → EtfPage
 stock.nq_overnight    新浪外盘 NQ  → cache/nq_min.parquet ───────→ nq_data.js     → QdiiPage
 stock.us_perf         腾讯美股/Kraken/纳斯达克/东财 ─────────────→ us_data.js     → UsPage + CryptoPage
 housing.scrape_housing_data 统计局 → data/70城房价.json + data/raw/ ┐
@@ -36,16 +35,14 @@ housing.generate_js_data ──────────────────�
 source .venv/bin/activate          # Python 3.12+，依赖见 requirements.txt
 ./update.sh                        # 本地跑全部抓取(all / stock / housing 三档)
 
-# A股 / ETF / 指数 / 债 / NQ / 美股
+# A股 / 指数 / 债 / NQ / 美股
 python -m pipeline.stock.median_trend             # 有缓存则直接导出; 无缓存全量拉(~10-20分钟)
 python -m pipeline.stock.median_trend --update    # 收盘后增量: 腾讯批量快照拉当日(~1.5s)，缺口时回退 baostock 窗口
 python -m pipeline.stock.median_trend --refresh   # 删缓存全量重拉
-python -m pipeline.stock.intraday_cache 159696    # ETF 1min bar 累积 + 导出日K/分时
 python -m pipeline.stock.index_perf               # 15 个宽基/特色/港股指数今年以来涨跌幅
 python -m pipeline.stock.bond_rate                # 10Y/30Y 国债活跃券收益率
 python -m pipeline.stock.nq_overnight             # 纳指期货隔夜涨跌 + 分时
 python -m pipeline.stock.us_perf                  # 纳指100+七巨头+权重股+财报+加密
-python -m pipeline.stock.intraday_etf 159696 5    # 独立脚本: ETF 日内时段分析(新浪5min bar)
 
 # 房价
 python -m pipeline.housing.scrape_housing_data --year 2026   # 抓某年（默认 2026）
@@ -99,21 +96,21 @@ cd app && pnpm lint     # eslint(当前零 error，别放宽)
 用到新的图表类型或组件时，必须先在 `echarts.use([...])` 里注册 —— 漏注册时 echarts **不报错**，
 而是静默不渲染那部分。「option 写了但没效果」先查这里。
 
-**路由是 hash**（`#/qdii` `#/etf` `#/us` `#/median` `#/index` `#/bond` `#/crypto` `#/housing`，
+**路由是 hash**（`#/qdii` `#/us` `#/median` `#/index` `#/bond` `#/crypto` `#/housing`，
 落地页是第一个）：GitHub Pages 纯静态托管，history 路由刷新会 404。
 `app/vite.config.js` 的 `base` 是 `/aggregated-market-data/`，换托管方式要一起改。
 
-**页面按 `lazy()` 切包**：每页各自 import 自己那份数据（etf 88KB、房价 70KB…），静态引入会全挤进首屏 chunk。
+**页面按 `lazy()` 切包**：每页各自 import 自己那份数据（房价 70KB…），静态引入会全挤进首屏 chunk。
 
-**导航的窄屏断点是 860px，不是别处那个 680px。** 8 个标签横排实测要 800px，加上深浅色开关和
-左右内边距，830 以下横条就把页面顶出横向滚动条了——所以 860 以下换成汉堡 + 左侧抽屉
+**导航的窄屏断点是 780px，不是别处那个 680px。** 7 个标签横排要 ~705px，加上深浅色开关和
+左右内边距，735 以下横条就把页面顶出横向滚动条了——所以 780 以下换成汉堡 + 左侧抽屉
 （`App.jsx` 里两处渲染的是同一份 `<a>` 列表）。加/改导航项要重测这个宽度。
 抽屉的收起挂在链接的 `onClick` 上而不是跟着路由变：点已经选中的那一项不触发 `hashchange`。
 
 **图表零件在 `app/src/chartBase.js`，表格零件在 `app/src/table.jsx`**（`useSort` / `Pct`）。
-拆成八页后这些被三四个页面共用，别再各页复制一份。
+拆成多页后这些被三四个页面共用，别再各页复制一份。
 
-## A股 / ETF / 美股侧的坑
+## A股 / 美股侧的坑
 
 - **CI 时区是 UTC**：`update.yml` 每个工作日跑两次 `--update` 并提交数据——UTC 08:30（北京 16:30，A 股收盘后腾讯快照早已可用，且港股 16:00 已收盘，`index_perf` 的恒指两条才是收盘价）为主，UTC 10:00（北京 18:00）兜底（万一 16:30 落到 baostock 回退分支，那时 baostock 当日数据还没出，~17:30 才有）。任何面向展示的时间必须用 `pd.Timestamp.now(tz="Asia/Shanghai")`，裸 `now()` 在 CI 里是零时区。
 - **`--update` 主源是腾讯批量快照**（`qt.gtimg.cn/q=` 逗号拼代码，每请求实测上限 900 只、取 800，全市场 7 请求 ~1.5s；字段 `[6]`成交量 `[30]`时间戳 `[32]`涨跌幅%，GBK 编码）。三条硬约束：① 停牌股返回 `pct=0.00` 而非空，必须按 `成交量>0` 剔，否则中位数被 0 拉偏；② 校验 `[30]` 时间戳日期等于目标日，防隔日跑写进陈旧价；③ **未收盘不落库**——盘中快照会被当成收盘价写死，次日 `--update` 只取新一天不回补。与 baostock qfq 口径实测 30 股 0 偏差。
@@ -121,14 +118,13 @@ cd app && pnpm lint     # eslint(当前零 error，别放宽)
 - **baostock 挂了也要能出数（`update_incremental()`）**：2026-07-22 实际发生过——baostock 全站不可用，login 卡 2 分多钟后抛错，而当时数据主源已经是腾讯，却被日历/代码表这两个辅助调用整条拖死。现在 login 失败即降级：代码表退回 parquet 里最近交易日那份（漏掉当天新上市的几只，5000 只样本的中位数无感），交易日判断交给腾讯快照自己——节假日快照返回上个交易日的陈旧时间戳，`parse_tencent_quotes` 的日期校验会全过滤掉，覆盖率 0 自然不写。此时**不再回退 baostock**（它本来就挂着），直接不更新，缺口留给它恢复后的兜底跑补。改这块前先跑 `tests/test_tencent_parse.py`（覆盖正常/缺口/非交易日/降级出数/降级不写五条分支，全离线）。
 - **A股代码过滤**：`A_PREFIXES = ("sh.6", "sz.0", "sz.30")`。必须用 `sz.30` 而非 `sz.3`，否则 `sz.399*` 深证指数混入。不含北交所和B股。
 - **停牌剔除**：baostock 停牌日 `pctChg` 为空字符串，拉取时已过滤。
-- **非交易日保护**：`--update` 先走 `trading_days()`，节假日空跑不写脏数据（`is_trading_day()` 是它的单日包装，`stock/intraday_cache.py` 在用）。
+- **非交易日保护**：`--update` 先走 `trading_days()`，节假日空跑不写脏数据（`is_trading_day()` 是它的单日包装）。
 - **baostock 会话**：`bs_session()` 是可嵌套的全局单例，login 握手要 1 秒多，别再在函数里各 login 一次；`--update` 全流程共用一次登录（29s → 15s）。
 - **ST 名单缓存**：`st_codes()` 结果写 `cache/st_codes.json` 存 7 天并入库。`query_stock_basic()` 拉全市场 5000+ 行是本脚本最慢的单次调用，而戴帽摘帽是低频事件。拉到空名单时抛错不覆盖旧缓存。
 - **写盘前体检**：`sanity_check()` 在写 `median_data.js` 前断言列长一致/日期升序无重复/无未来日期/中位数 `<15%`/上涨占比 `0~100`/最新日样本 `>4000`。失败即抛，CI 那步红掉就不会 commit——脏数据一旦入库，次日 `--update` 只取新一天不会回补。故意不查新鲜度：节假日本就没新数据，没写就没 commit。
 - **CI push 竞态**：workflow 里 push 前 `git pull --rebase`，改 workflow 时保留。
 - **`daily_pctchg.parquet` 滚动裁剪**：所有写盘走 `save_raw()`，只留 `date >= min(数据最新日所在年的 1 月 1 日, 最新日 − 30 天)`。上游最深只回看今年（导出）和最近 10 天（增量窗口 / baostock 降级时的代码表），更早的纯占体积。**保底 30 天是跨年防线**：单按今年切，元旦后缓存会被清空，增量窗口全判缺口退回 baostock 逐股慢路径（10-20 分钟），`stock/nq_overnight.py` 的 `trading_days()` 也拿不到跨年的前一交易日。年份取自数据最新日而非 `now()`（CI 是 UTC）。改这块跑 `tests/test_tencent_parse.py`（含年中切 / 跨年保底两条分支）。历史裁剪不缩 `.git`——旧 blob 还在，只对后续提交生效。
-- **`cache/daily_pctchg.parquet` 和 `cache/nq_min.parquet` 不进 git，走 `actions/cache`**（key `stock-cache-<run_id>` + `restore-keys: stock-cache-`，`update.yml` 与 `nq_night.yml` 共用一个 prefix：后者只读 daily_pctchg、只写 nq_min，存回去不会回退前者）。原因：这两份每个工作日被全量重写提交 2~3 次，parquet 已压缩、git 不 delta 压缩，按这个速率一年往 `.git` 里塞 ~1.3G。**同目录的 `intraday_159696_1min.parquet` 反过来留在 git**——新浪只给最新 1970 根，逐日累积攒出的历史丢了补不回来；那两份则可再生。**cache 未命中不是故障但必须能自愈**：`median_trend.py` 的 `--update` 分支带 `and RAW.exists()`，缓存没了直接落到全量重拉（慢 10-20 分钟但数据完整）——少这个守卫就会走增量，`update_incremental()` 只让 baostock 补最近 10 天窗口，`median_data.js` 从「今年以来」静默塌成 10 天，而 `sanity_check()` 不查条数照样 commit，之后每天 +1 天要一整年才长回来。actions/cache 7 天不访问即逐出，**春节休市那一周必然触发**，所以这条路每年都会走一次，别当成边角情况。`nq_night.yml` 那步挂了 `continue-on-error`：未命中时 `trading_days()` 读不到 daily_pctchg 会抛，不该让整个 job 红。改这块跑 `tests/test_tencent_parse.py` 的 `test_update_without_cache_refetches_all`。
-- **159696 分时累积**：`stock/intraday_cache.py` 每日 CI 拉新浪 1min bar（固定最新 1970 根 ≈9 交易日），按 `day` 去重合并进 parquet，逐日累加突破 1970 根限制。新浪偶发失败时 `continue-on-error` 不阻断中位数更新。合并后导出 `etf_data.js`（日K聚合 + 每日分时，剔除不足 200 根的边界日），`EtfPage` 渲染（点击K线看分时），CI 一并提交。
+- **`cache/daily_pctchg.parquet` 和 `cache/nq_min.parquet` 不进 git，走 `actions/cache`**（key `stock-cache-<run_id>` + `restore-keys: stock-cache-`，`update.yml` 与 `nq_night.yml` 共用一个 prefix：后者只读 daily_pctchg、只写 nq_min，存回去不会回退前者）。原因：这两份每个工作日被全量重写提交 2~3 次，parquet 已压缩、git 不 delta 压缩，按这个速率一年往 `.git` 里塞 ~1.3G。这两份都可再生。**cache 未命中不是故障但必须能自愈**：`median_trend.py` 的 `--update` 分支带 `and RAW.exists()`，缓存没了直接落到全量重拉（慢 10-20 分钟但数据完整）——少这个守卫就会走增量，`update_incremental()` 只让 baostock 补最近 10 天窗口，`median_data.js` 从「今年以来」静默塌成 10 天，而 `sanity_check()` 不查条数照样 commit，之后每天 +1 天要一整年才长回来。actions/cache 7 天不访问即逐出，**春节休市那一周必然触发**，所以这条路每年都会走一次，别当成边角情况。`nq_night.yml` 那步挂了 `continue-on-error`：未命中时 `trading_days()` 读不到 daily_pctchg 会抛，不该让整个 job 红。改这块跑 `tests/test_tencent_parse.py` 的 `test_update_without_cache_refetches_all`。
 - **指数 YTD 卡片**：`stock/index_perf.py` 拉 15 个宽基/特色/港股指数今年以来涨跌幅 → 导出 `idx_data.js`，`IndexPage` 排名条形图渲染。源按序回退：腾讯 `fqkline`（10 个沪深指数 + 恒生指数 `hkHSI`/恒生科技 `hkHSTECH`，一次请求 400 根日线，与新浪逐日实测完全一致）→ 新浪 `stock_zh_index_daily`（akshare 封装随网站变，故降为备源；北证50 `bj899050` 腾讯只给 1 根，实际就靠它）；中证2000 `932000` 腾讯/新浪都没有，只能走中证官网 `stock_zh_index_hist_csindex`；微盘股 883418 / 可转债 883981 是同花顺自编指数，直连 `d.10jqka.com.cn/v4/line/bk_*` 接口带 ths.js 算的 v cookie。「拉到了但历史不覆盖上年末基准」也算失败并换源。全源失败则复用上次 `idx_data.js` 里那条并标 `stale:true`，前端半透明 + tooltip 注明——比静默少一根条可见。CI `continue-on-error` 单独跑。**两条恒指只挂 `tx` 不挂 `sina`**：akshare 的 `stock_zh_index_daily` 是 A 股口径不认 `hk*` 代码，挂上去也只是白失败一次。**恒指是港币计价的价格指数**，与 CNY 计价的 A 股指数同图看趋势可以，严格说隔着汇率不同币种。港股 16:00 收盘（A 股 15:00），`update.yml` 的 cron 从 15:10 挪到 16:30 就是为了这两条不落到盘中价（18:00 那条本来也会覆盖）。
 - **国债活跃券卡片（`BondPage`）**：`stock/bond_rate.py` 拉中国货币网现券成交（`chinamoney.com.cn/ags/ms/cm-u-md-bond/CbtPri`，akshare 的 `bond_spot_deal` 同源）→ 挑 10Y/30Y 活跃券 → `bond_data.js`，纯 HTML 卡片（无 ECharts）。约束：
   - **`pageSize` 是摆设但不能填大**：填 15 照样回全市场 2998 行（~1.8MB，一次请求拿全）；填 100 直接 WAF `403`。要 UA，Referer 可有可无。

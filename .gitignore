@@ -9,9 +9,7 @@ dist/
 # daily_pctchg(2.6M) 和 nq_min(206K) 走 actions/cache: 它们每个工作日被全量重写
 # 提交 2~3 次, parquet 已压缩、git 不 delta 压缩, 按这个速率一年往 .git 里塞 ~1.3G。
 # 两份都可再生 —— daily_pctchg 能从 baostock 全量重拉(median_trend 无缓存即走全量),
-# nq_min 丢了只断一两天曲线。intraday_159696 反过来: 新浪只给最新 1970 根,
-# 逐日累积攒出的历史丢了补不回来, 所以它留在 git 里。
+# nq_min 丢了只断一两天曲线。
 # 新增缓存文件要同时改这里和 workflow 的 git add / cache path。
 cache/*
-!cache/intraday_159696_1min.parquet
 !cache/st_codes.json
