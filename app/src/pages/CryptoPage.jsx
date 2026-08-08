@@ -60,11 +60,10 @@ export default function CryptoPage() {
   }, [C]);
 
   if (!C?.length) return null;
+  // 不显示页头的「更新于」: us_data.js 已不带 updated(那是脚本跑的时刻不是数据的时刻),
+  // 卡片副标题里的「截至」才是真口径 —— 拿到实时价后它本来就是此刻。
   return (
     <div className="wrap">
-      <header>
-        <div className="sub">更新于 {U.updated}</div>
-      </header>
       <div className={"card" + (C[0].stale ? " stale" : "")}>
         <h2>
           BTC / ETH <span>{sub}</span>

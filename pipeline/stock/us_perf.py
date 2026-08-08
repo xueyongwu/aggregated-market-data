@@ -270,12 +270,14 @@ def pct(s: pd.Series, cut: pd.Timestamp) -> float:
 
 
 def perf(s: pd.Series) -> dict:
-    """收盘序列 -> 本周/本月/今年以来涨跌幅 + 最新收盘。
+    """收盘序列 -> 当日/本周/本月/今年以来涨跌幅 + 最新收盘。
 
-    三个基准都取自「最新那根 bar 的日期」而非 now(), 理由见模块头。
+    基准都取自「最新那根 bar 的日期」而非 now(), 理由见模块头。
     """
     d = s.index[-1]
     return {
+        # cut = 最新那根本身 -> 基准是前一根收盘, 即当日涨跌幅
+        "day": pct(s, d),
         # cut = 本周一 -> 基准落到上周最后一个交易日收盘(通常上周五, 假期则更早)
         "wtd": pct(s, d - pd.Timedelta(days=d.weekday())),
         "mtd": pct(s, d.replace(day=1)),
@@ -325,9 +327,8 @@ def crypto() -> list[dict]:
         r = fetch("https://api.kraken.com/0/public/OHLC", timeout=20,
                   params={"pair": pair, "interval": 1440})
         s = parse_kraken(r.json())
-        # 「今日」只给加密, 不进 perf(): 美股那张表 407b626 特意用本周替换掉了当日列。
-        # cut = 最新那根本身 -> 基准是前一根; 7x24 连续交易, 昨日 UTC 收盘即今日开盘。
-        out.append({"name": name, "code": pair, "day": pct(s, s.index[-1])} | perf(s))
+        # perf() 的 day 对加密同样成立: 7x24 连续交易, 昨日 UTC 收盘即今日开盘。
+        out.append({"name": name, "code": pair} | perf(s))
     return out
 
 
@@ -398,8 +399,9 @@ def main():
         if e:
             h |= {"rpt": e["date"]} | {k: e[k] for k in ("rev", "revYoy", "ni", "niYoy") if k in e}
 
-    payload = {"updated": pd.Timestamp.now(tz="Asia/Shanghai").strftime("%Y-%m-%d %H:%M"),
-               "items": items, "holdings": hold, "earnings": earn, "crypto": coins}
+    # 刻意不带 updated: 那是脚本跑的时刻不是数据的时刻, 两张表各自的 date/asof 才是真口径,
+    # 摆在页头反而误导(空跑也照样刷新)。想知道 CI 什么时候跑的看 git log。
+    payload = {"items": items, "holdings": hold, "earnings": earn, "crypto": coins}
     out.write_text("export const US_PERF = " + json.dumps(payload, ensure_ascii=False) + ";\n",
                    encoding="utf-8")
     print(f"已导出: {out} ({len(items)} 只)")

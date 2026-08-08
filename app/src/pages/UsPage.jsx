@@ -25,9 +25,12 @@ const PctAC = ({ v, w }) =>
     <Pct v={v} />
   );
 
-const PERF_COLS = [["name", "标的"], ["close", "收盘"], ["wtd", "本周"], ["mtd", "本月"], ["ytd", "今年以来"]];
+const PERF_COLS = [
+  ["name", "标的"], ["close", "收盘"], ["day", "涨跌幅"],
+  ["wtd", "本周"], ["mtd", "本月"], ["ytd", "今年以来"],
+];
 const HOLD_COLS = [
-  ["name", "标的"], ["weight", "权重"], ["wtd", "本周"], ["mtd", "本月"], ["ytd", "今年以来"],
+  ["name", "标的"], ["weight", "权重"], ["day", "涨跌幅"], ["wtd", "本周"], ["mtd", "本月"], ["ytd", "今年以来"],
   // 财报三列与权重同源, 这里按代码逐行取(GOOG 与 GOOGL 共用同一份)
   ["rpt", "财报公布日"], ["rev", "营收 / 同比"], ["ni", "净利润 / 同比"],
 ];
@@ -49,6 +52,7 @@ function PerfCard() {
               <tr key={r.name} className={r.name === "纳斯达克100" ? "hl idx" : ""}>
                 <td className="nm">{r.name}</td>
                 <td>{r.close.toFixed(2)}</td>
+                <Pct v={r.day} />
                 <Pct v={r.wtd} />
                 <Pct v={r.mtd} />
                 <Pct v={r.ytd} />
@@ -103,7 +107,7 @@ function HoldCard({ H }) {
                   <span className="cd">{i.code}</span>
                 </td>
                 <td>{i.weight.toFixed(2)}%</td>
-                {["wtd", "mtd", "ytd"].map((k) =>
+                {["day", "wtd", "mtd", "ytd"].map((k) =>
                   i.alt ? <PctAC key={k} v={i[k]} w={i.alt[k]} /> : <Pct key={k} v={i[k]} />,
                 )}
                 <td>{i.rpt || "—"}</td>
@@ -117,7 +121,7 @@ function HoldCard({ H }) {
             <tr>
               <td>前 10 大合计</td>
               <td>{H.items.reduce((a, i) => a + i.weight, 0).toFixed(2)}%</td>
-              <td colSpan={6} />
+              <td colSpan={7} />
             </tr>
           </tfoot>
         </table>
@@ -180,11 +184,10 @@ function SectorCard({ H }) {
 export default function UsPage() {
   useTheme(); // 无图表, 换肤纯靠 CSS 变量, 但要跟着重渲染
   const H = U.holdings;
+  // 不显示 U.updated: 那是脚本跑的时刻不是数据时刻(空跑也会刷新), 各卡片自己的「截至」才是
+  // 真口径。payload 里的 updated 键留着 —— CryptoPage 还在用同一份 us_data.js。
   return (
     <div className="wrap">
-      <header>
-        <div className="sub">更新于 {U.updated}</div>
-      </header>
       <PerfCard />
       {H?.items?.length ? <HoldCard H={H} /> : null}
       {H?.sectors?.length ? <SectorCard H={H} /> : null}
