@@ -1,7 +1,8 @@
 """纳指100 + 美股七巨头 本月/今年以来累计涨跌幅 -> app/src/data/us_data.js (UsPage 渲染)。
 
-另拉纳指100 前 11 大权重股(见 holdings())、最近一期财报单季营收与净利(见 earnings())、
-BTC/ETH 现货同口径涨跌幅(见 crypto())。
+另拉纳指100 前 11 大权重股(见 holdings())、最近一期财报单季营收与净利(见 earnings())。
+加密(BTC/ETH)曾经也在这里, 已拆去 crypto_perf.py —— 它 7x24, close 每跑都变, 挂在
+us_data.js 上会让美股这份天天被顶着提交。本模块的 fetch()/perf()/last() 被它复用。
 
 数据源: 腾讯美股日线 web.ifzq.gtimg.cn/appstock/app/usfqkline/get
   一次请求 400 根日线(≈1.6 年), 足够覆盖上年末 + 上月末两个基准。
@@ -292,46 +293,6 @@ def metrics(symbol: str) -> dict:
     return perf(closes(symbol))
 
 
-CRYPTO = [("比特币", "XBTUSD"), ("以太坊", "ETHUSD")]
-
-
-def parse_kraken(data: dict) -> pd.Series:
-    """Kraken OHLC 响应 -> 收盘序列(索引为 UTC 日期)。
-
-    请求传 XBTUSD, 响应键却是 XXBTZUSD(Kraken 管 BTC 叫 XBT), 所以不能按请求的
-    pair 去取, 只能挑 result 里除 "last" 之外的那一个键。
-    行格式 [ts, o, h, l, c, vwap, vol, count], 数值全是字符串。
-    """
-    res = (data or {}).get("result") or {}
-    rows = next((v for k, v in res.items() if k != "last"), None)
-    if not rows:
-        raise RuntimeError(f"Kraken 无日线: {(data or {}).get('error')}")
-    s = pd.Series({x[0]: float(x[4]) for x in rows})
-    s.index = pd.to_datetime(s.index, unit="s")
-    return s.sort_index()
-
-
-def crypto() -> list[dict]:
-    """BTC/ETH 现货 本周/本月/今年以来涨跌幅, 与美股同口径(perf)。
-
-    源用 Kraken 公共 OHLC: 无 key、无地域封锁, 一次给 720 根日线(≈2 年), 三个基准都够。
-    其余源实测: 币安 451 地域封锁(GH Actions 的美国 IP 一样挂), OKX 本地通但美国 IP
-    有封锁风险, Coinbase 一次只给 350 根(要 start/end 分页), 腾讯没有加密,
-    新浪 hf_BTC 是 CME 比特币期货(有假日休市)不是现货。
-
-    加密 7x24 按 UTC 日切, 最新那根是当日进行中的 bar —— 于是 close 即实时价, 符合预期;
-    周一必有 bar, 「本周」基准天然落到上周日收盘, perf() 不用为它开特例。
-    """
-    out = []
-    for name, pair in CRYPTO:
-        r = fetch("https://api.kraken.com/0/public/OHLC", timeout=20,
-                  params={"pair": pair, "interval": 1440})
-        s = parse_kraken(r.json())
-        # perf() 的 day 对加密同样成立: 7x24 连续交易, 昨日 UTC 收盘即今日开盘。
-        out.append({"name": name, "code": pair} | perf(s))
-    return out
-
-
 def last(out: Path, key: str):
     """上次导出的某一块, 供本次拉取失败时降级复用。"""
     try:
@@ -351,17 +312,6 @@ def main():
 
     items.sort(key=lambda x: x["ytd"], reverse=True)
     out = WEB_DATA / "us_data.js"
-
-    try:  # Kraken 是另一个源, 挂了不该把美股行情一起拖掉: 沿用上次的并标 stale
-        coins = crypto()
-        for c in coins:
-            print(f"{c['name']:<10} 今日 {c['day']:+7.2f}%  本周 {c['wtd']:+7.2f}%"
-                  f"  本月 {c['mtd']:+7.2f}%  今年 {c['ytd']:+7.2f}%  ({c['date']})", flush=True)
-    except Exception as e:
-        coins = last(out, "crypto") or []
-        print(f"加密拉取失败({e}), " + ("沿用上次" if coins else "本次不带加密"), flush=True)
-        for c in coins:
-            c["stale"] = True
 
     try:  # 权重是另一个源, 挂了不该把行情一起拖掉: 沿用上次的并标 stale
         hold = holdings()
@@ -401,7 +351,7 @@ def main():
 
     # 刻意不带 updated: 那是脚本跑的时刻不是数据的时刻, 两张表各自的 date/asof 才是真口径,
     # 摆在页头反而误导(空跑也照样刷新)。想知道 CI 什么时候跑的看 git log。
-    payload = {"items": items, "holdings": hold, "earnings": earn, "crypto": coins}
+    payload = {"items": items, "holdings": hold, "earnings": earn}
     out.write_text("export const US_PERF = " + json.dumps(payload, ensure_ascii=False) + ";\n",
                    encoding="utf-8")
     print(f"已导出: {out} ({len(items)} 只)")

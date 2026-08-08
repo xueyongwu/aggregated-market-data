@@ -1,0 +1,44 @@
+name: crypto
+
+# 从 us.yml 拆出来的原因见 CLAUDE.md: 加密 7x24, 跟美股的收盘节奏对不上。
+# ① close 每跑都变, 挂在 us_data.js 上会让美股那份天天被顶着提交;
+# ② us.yml 的 cron 是 UTC 1-5(北京周二~周六 07:00), 周日周一不跑 —— 浏览器拉不到
+#    Kraken 实时价时, 降级用的快照最久要陈旧 3 天。
+on:
+  schedule:
+    # UTC 00:10 每天 = 北京 08:10。紧跟 UTC 日切之后, 四个基准(日/周/月/年)全都是
+    # 刚翻过去的那一档, 快照自带的数字最新。
+    #
+    # 注意: 这个时刻**不影响正确性**。基准收盘由 bases() 一起导出, 前端按此刻的 UTC
+    # 时钟自己查表换基准(见 CryptoPage 的 baseDates), 跨边界的窗口是 0。cron 只决定
+    # 「浏览器拉不到实时价时那份降级快照有多新」, 以及 bases 表覆盖到哪天(留了 10 天,
+    # 连挂 7 天以内前端都还能自己算)。Actions cron 实测延迟 11~71 分钟, 无所谓。
+    - cron: "10 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write # 触发 deploy.yml
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install pandas requests
+      - run: python -m pipeline.stock.crypto_perf
+      - name: commit & push
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app/src/data/crypto_data.js
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: crypto update $(date -u +%F)"
+          git pull --rebase
+          git push
+          gh workflow run deploy.yml

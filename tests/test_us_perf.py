@@ -1,7 +1,7 @@
 """us_perf.pct() 基准选取自检(离线, 合成日线)。跑: python -m tests.test_us_perf"""
 import pandas as pd
 
-from pipeline.stock.us_perf import parse_income, parse_kraken, parse_surprise, pct, tech_split
+from pipeline.stock.us_perf import parse_income, parse_surprise, pct, tech_split
 
 
 def series(pairs):
@@ -136,34 +136,11 @@ def test_income_quarter_mismatch():
         raise AssertionError(f"对不上财季应抛 RuntimeError: {bad}")
 
 
-def test_kraken_renamed_pair():
-    # 请求传 XBTUSD 响应键却是 XXBTZUSD, 不能按 pair 取; "last" 那个键不是行情
-    s = parse_kraken({"error": [], "result": {"XXBTZUSD": [
-        [1785542400, "62725.1", "63307.2", "62710.6", "63000.1", "0", "0", 1],
-        [1785628800, "63000.1", "63084.8", "62268.5", "62989.6", "0", "0", 1]],
-        "last": 1785628800}})
-    assert list(s) == [63000.1, 62989.6]                 # 取第 5 列(收盘), 字符串转数
-    assert s.index[-1] == pd.Timestamp("2026-08-02")     # UTC 日切
-    assert s.index.is_monotonic_increasing
-
-
-def test_kraken_empty_raises():
-    # 代码写错/上游报错 -> 抛错, 由 main() 退回上次的加密数据, 不影响美股那几张表
-    for bad in (None, {}, {"error": ["EQuery:Unknown asset pair"], "result": {}},
-                {"result": {"last": 1785600000}}):
-        try:
-            parse_kraken(bad)
-        except RuntimeError:
-            continue
-        raise AssertionError(f"空结果应抛 RuntimeError: {bad}")
-
-
 if __name__ == "__main__":
     for f in (test_week_base, test_month_base, test_year_base, test_prev_close, test_no_base_raises,
               test_tech_split_residual, test_tech_split_no_negative_rest,
               test_surprise_picks_latest, test_surprise_empty_raises,
               test_income_ok, test_income_quarter_spills_next_month,
-              test_income_missing_item_raises, test_income_quarter_mismatch,
-              test_kraken_renamed_pair, test_kraken_empty_raises):
+              test_income_missing_item_raises, test_income_quarter_mismatch):
         f()
         print(f"ok  {f.__name__}")
