@@ -40,7 +40,7 @@ function PerfCard() {
   return (
     <div className="card">
       <h2>
-        纳指100 · 美股七巨头 <span>· 截至 {U.items[0].date}</span>
+        纳指100 · 标普500 · 美股七巨头 <span>· 截至 {U.items[0].date}</span>
       </h2>
       <div className="tWrap">
         <table className="dt">
@@ -49,7 +49,7 @@ function PerfCard() {
           </thead>
           <tbody>
             {sorted.map((r) => (
-              <tr key={r.name} className={r.name === "纳斯达克100" ? "hl idx" : ""}>
+              <tr key={r.name} className={["纳斯达克100", "标普500"].includes(r.name) ? "hl idx" : ""}>
                 <td className="nm">{r.name}</td>
                 <td>{r.close.toFixed(2)}</td>
                 <Pct v={r.day} />

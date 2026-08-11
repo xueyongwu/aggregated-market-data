@@ -45,6 +45,7 @@ def fetch(url: str, tries: int = 3, **kw) -> requests.Response:
 
 SYMBOLS = [  # (显示名, 腾讯代码)
     ("纳斯达克100", "usNDX"),
+    ("标普500", "usINX"),  # 腾讯的标普代码是 INX 不是 SPX/SP500(那两个回空 day)
     ("英伟达", "usNVDA.OQ"),
     ("苹果", "usAAPL.OQ"),
     ("微软", "usMSFT.OQ"),
@@ -326,8 +327,8 @@ def main():
         if hold:
             hold["stale"] = True
 
-    # 财报覆盖页面上已有的两张表(七巨头 + 权重股), 去重保序; 指数 NDX 没有财报, 排除
-    tickers = [s[2:].split(".")[0] for _, s in SYMBOLS if s != "usNDX"]
+    # 财报覆盖页面上已有的两张表(七巨头 + 权重股), 去重保序; 指数没有财报, 靠 .OQ 后缀排除
+    tickers = [s[2:].split(".")[0] for _, s in SYMBOLS if "." in s]
     tickers += [h["code"] for h in (hold or {}).get("items", []) if h["code"] not in tickers]
     # payload 里的 earnings 已经没有前端在渲染(财报表撤了, 三列并进权重表), 留着只为
     # 下面这条降级: 纳斯达克全挂时拿上次的补上权重表那三列。删了它降级就断了。
