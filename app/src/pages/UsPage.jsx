@@ -184,8 +184,7 @@ function SectorCard({ H }) {
 export default function UsPage() {
   useTheme(); // 无图表, 换肤纯靠 CSS 变量, 但要跟着重渲染
   const H = U.holdings;
-  // 不显示 U.updated: 那是脚本跑的时刻不是数据时刻(空跑也会刷新), 各卡片自己的「截至」才是
-  // 真口径。加密已拆去 crypto_data.js, 这份现在只有美股三张表在用。
+  // 不显示 U.updated: 那是脚本跑的时刻不是数据时刻(空跑也会刷新), 各卡片自己的「截至」才是真口径。
   return (
     <div className="wrap">
       <PerfCard />

@@ -3,7 +3,7 @@
 #
 # 用法：
 #   ./update.sh            全部（A股 + 指数 + 债 + NQ + 美股 + 房价）
-#   ./update.sh stock      只跑 A股 / 指数 / 债 / NQ / 美股 / 加密
+#   ./update.sh stock      只跑 A股 / 指数 / 债 / NQ / 美股
 #   ./update.sh housing    只跑房价（可带年份：./update.sh housing 2025）
 #
 # 线上有对应的 workflow 各自按自己的节奏跑，这个脚本只是本地手动补一趟。
@@ -21,7 +21,6 @@ run_stock() {
   echo "▶ 国债活跃券..."   ; "$PY" -m pipeline.stock.bond_rate             || echo "  (跳过)"
   echo "▶ NQ 隔夜..."      ; "$PY" -m pipeline.stock.nq_overnight          || echo "  (跳过)"
   echo "▶ 美股..."         ; "$PY" -m pipeline.stock.us_perf               || echo "  (跳过)"
-  echo "▶ 加密..."         ; "$PY" -m pipeline.stock.crypto_perf           || echo "  (跳过)"
 }
 
 run_housing() {

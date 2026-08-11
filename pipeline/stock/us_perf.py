@@ -1,8 +1,6 @@
 """纳指100 + 美股七巨头 本月/今年以来累计涨跌幅 -> app/src/data/us_data.js (UsPage 渲染)。
 
 另拉纳指100 前 11 大权重股(见 holdings())、最近一期财报单季营收与净利(见 earnings())。
-加密(BTC/ETH)曾经也在这里, 已拆去 crypto_perf.py —— 它 7x24, close 每跑都变, 挂在
-us_data.js 上会让美股这份天天被顶着提交。本模块的 fetch()/perf()/last() 被它复用。
 
 数据源: 腾讯美股日线 web.ifzq.gtimg.cn/appstock/app/usfqkline/get
   一次请求 400 根日线(≈1.6 年), 足够覆盖上年末 + 上月末两个基准。

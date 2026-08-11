@@ -1,8 +1,8 @@
-// 七块看板合并成的单页应用。路由走 hash（#/qdii、#/us …）：
+// 六块看板合并成的单页应用。路由走 hash（#/qdii、#/us …）：
 // GitHub Pages 是纯静态托管，history 路由刷新会 404，hash 不用服务端配合。
 //
 // 导航两种形态，同一份 PAGES 渲染两遍（见 theme.css）：宽屏顶部一条横向 pill，
-// 窄屏收成汉堡 + 左侧抽屉 —— 7 项在 375px 上横排必然溢出成横向滚动条。
+// 窄屏收成汉堡 + 左侧抽屉 —— 6 项在 375px 上横排必然溢出成横向滚动条。
 import { lazy, Suspense, useEffect, useState } from "react";
 import { ThemeProvider, ThemeToggle } from "./theme";
 import "./theme.css";
@@ -15,7 +15,6 @@ const PAGES = [
   { id: "median", nav: "A股中位数", title: "A股中位数", El: lazy(() => import("./pages/MedianPage")) },
   { id: "index", nav: "宽基指数", title: "宽基指数", El: lazy(() => import("./pages/IndexPage")) },
   { id: "bond", nav: "国债活跃券", title: "国债活跃券", El: lazy(() => import("./pages/BondPage")) },
-  { id: "crypto", nav: "加密货币", title: "加密货币", El: lazy(() => import("./pages/CryptoPage")) },
   { id: "housing", nav: "70城房价", title: "70城房价趋势 · 2021-2026", El: lazy(() => import("./pages/HousingPage")) },
 ];
 
