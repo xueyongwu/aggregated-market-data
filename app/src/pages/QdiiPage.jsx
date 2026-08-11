@@ -8,7 +8,7 @@ import { echarts } from "../echarts";
 import { useTheme, vars } from "../theme";
 import { aOpen, jsonp, poll } from "../jsonp";
 import { COLORS, MOBILE, clampTip, fmtP, tip, yPrice } from "../chartBase";
-import { Pct, fmt, useSort } from "../table";
+import { Pct, useSort } from "../table";
 import { NQ_OVERNIGHT as NQ } from "../data/nq_data";
 
 const GL = MOBILE ? 46 : 56; // 图表左边距, 窄屏收紧
@@ -350,23 +350,13 @@ function QdiiCard() {
   });
   const { sorted, th } = useSort(full, "chg"); // 默认涨跌幅降序
 
-  // 平均 / 极差(max − min)，只对百分比列(现价/成交额/规模各只之间没有可比性)。
+  // 极差(max − min)，只对百分比列(现价/成交额/规模各只之间没有可比性)。
   // 缺值(基准还没异步到 / 单只停牌)不计入。单位严格说是「个百分点」, 但表里其余都写 %,
-  // 跟着写 %; 极差恒为正, 也就不套 Pct 的红绿(平均值可能为负, 带符号即可)。
+  // 跟着写 %; 极差恒为正, 也就不套 Pct 的红绿。
   const nums = (k) => full.map((r) => r[k]).filter(Number.isFinite);
-  const avg = (k) => {
-    const v = nums(k);
-    return v.length ? fmt(v.reduce((a, x) => a + x, 0) / v.length) : "—";
-  };
   const spread = (k) => {
     const v = nums(k);
     return v.length < 2 ? "—" : (Math.max(...v) - Math.min(...v)).toFixed(2) + "%";
-  };
-  const med = (k) => {
-    const v = nums(k).sort((a, b) => a - b);
-    if (!v.length) return "—";
-    const h = v.length >> 1;
-    return fmt(v.length % 2 ? v[h] : (v[h - 1] + v[h]) / 2);
   };
   const skip = (k) => ["px", "amt", "size"].includes(k);
 
@@ -412,25 +402,13 @@ function QdiiCard() {
               ))
             )}
           </tbody>
-          {/* 平均 / 极差放 tfoot: 不参与排序 */}
+          {/* 极差放 tfoot: 不参与排序 */}
           {sorted.length > 0 && (
             <tfoot>
               <tr>
                 <td className="nm">极差</td>
                 {QCOLS.map(([k]) => (
                   <td key={k}>{skip(k) ? "" : spread(k)}</td>
-                ))}
-              </tr>
-              <tr>
-                <td className="nm">平均</td>
-                {QCOLS.map(([k]) => (
-                  <td key={k}>{skip(k) ? "" : avg(k)}</td>
-                ))}
-              </tr>
-              <tr>
-                <td className="nm">中位数</td>
-                {QCOLS.map(([k]) => (
-                  <td key={k}>{skip(k) ? "" : med(k)}</td>
                 ))}
               </tr>
             </tfoot>
