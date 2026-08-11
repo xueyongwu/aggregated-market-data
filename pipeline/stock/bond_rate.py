@@ -117,7 +117,8 @@ def main():
               f"{bp:<9} 剩余{it['maturity']}  {it['vol']}亿  {it['time']}", flush=True)
 
     out = WEB_DATA / "bond_data.js"
-    payload = {"updated": now.strftime("%Y-%m-%d %H:%M"), "items": items}
+    # 不带 updated: 那是脚本跑的时刻不是行情时刻, 每行自带 time(最新成交)才是真口径
+    payload = {"items": items}
     out.write_text("export const BOND_ACTIVE = " + json.dumps(payload, ensure_ascii=False) + ";\n",
                    encoding="utf-8")
     print(f"已导出: {out}")

@@ -67,10 +67,6 @@ export default function BondPage() {
   const spreads = [spread(by, "30年", "10年"), spread(by, "10年", "2年")].filter(Boolean);
   return (
     <div className="wrap">
-      <header>
-        <div className="sub">更新于 {BD.updated}</div>
-      </header>
-
       <div className="card">
         <h2>
           收益率 <span className="dot">银行间当日成交量最大的券，收益率上行=债价下跌</span>
