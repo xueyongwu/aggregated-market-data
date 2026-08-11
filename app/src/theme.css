@@ -475,11 +475,6 @@ table.dt {
 .bond .m { color: var(--ink2); font-size: 12px; }
 .bond .m i { color: var(--muted); font-style: normal; margin-left: 6px; }
 
-/* 加密卡片复用 .bond 的栅格+大数字, 只改「本周/本月/今年以来」那行: 三项并排, 标签在前 */
-.bond.crypto .m { display: flex; flex-wrap: wrap; gap: 4px 14px; }
-.bond.crypto .m i { margin: 0 4px 0 0; }
-.bond.crypto .m b { font-weight: 600; font-variant-numeric: tabular-nums; }
-
 @media (max-width: 680px) {
   .wrap { padding: 16px 12px 40px; }
   .sub { font-size: 11px; white-space: nowrap; gap: 6px; }

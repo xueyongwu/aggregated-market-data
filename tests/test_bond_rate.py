@@ -1,5 +1,5 @@
 """bond_rate 选券逻辑自检(离线, 合成 records)。跑: python -m tests.test_bond_rate"""
-from pipeline.stock.bond_rate import is_treasury, pick, today_rows, years
+from pipeline.stock.bond_rate import BUCKETS, CORE, amount, is_treasury, pick, today_rows, years
 
 
 def rec(name, term, vol, rate="1.70", code="000000", bp=-0.5):
@@ -70,6 +70,31 @@ def test_today_rows_keeps_only_today():
     stale = rec("26附息国债09", "9.5Y", "9999")           # 量最大但是旧的
     fresh = dict(rec("26附息国债10", "9.79Y", "612.8"), showDate="2026-08-03 17:35:08")
     assert pick(today_rows([stale, fresh], "2026-08-03"), 9.0, 10.5)["name"] == "26附息国债10"
+
+
+def test_amount_handles_dash():
+    # 开盘头几分钟这列是 '---', float() 会炸 -> 按 0 算, 别让整轮抓取挂掉
+    assert amount(rec("26附息国债10", "9.79Y", "612.8")) == 612.8
+    assert amount(rec("26附息国债10", "9.79Y", "---")) == 0.0
+    assert amount(rec("26附息国债10", "9.79Y", None)) == 0.0
+
+
+def test_buckets_dont_overlap():
+    # 桶重叠会让同一只券占两个期限点, 曲线上出现两个一样的值
+    assert CORE <= {b[0] for b in BUCKETS}
+    for (_, _, hi), (_, lo2, _) in zip(BUCKETS, BUCKETS[1:]):
+        assert hi < lo2
+
+
+def test_curve_buckets_catch_on_the_run():
+    # 2026-08-11 实盘的剩余期限, 每个桶都该落到对应的新券
+    rs = [rec("26附息国债06", "1.59Y", "300"), rec("26附息国债11", "2.79Y", "300"),
+          rec("26附息国债15", "4.95Y", "300"), rec("26附息国债12", "6.84Y", "300"),
+          rec("26附息国债10", "9.76Y", "600"), rec("26超长特别国债02", "29.70Y", "900")]
+    got = {label: pick(rs, lo, hi)["name"] for label, lo, hi in BUCKETS
+           if any(lo <= years(r["termToMaturity"]) <= hi for r in rs)}
+    assert got == {"2年": "26附息国债06", "3年": "26附息国债11", "5年": "26附息国债15",
+                   "7年": "26附息国债12", "10年": "26附息国债10", "30年": "26超长特别国债02"}
 
 
 if __name__ == "__main__":
