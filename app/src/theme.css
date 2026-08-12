@@ -357,6 +357,15 @@ table,
   text-align: center;
   color: var(--muted);
 }
+/* 页尾小字说明(不裹卡片, 紧跟最后一张卡之后) */
+.note {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.75;
+  margin: 0 6px 16px;
+}
+/* 加粗要连着提一档墨色: 整句是 muted 灰, 只加粗不提色在浅色皮下几乎看不出来 */
+.note b { color: var(--ink2); font-weight: 600; }
 code {
   background: var(--grid);
   padding: 2px 6px;

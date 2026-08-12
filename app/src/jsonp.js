@@ -20,12 +20,24 @@ export function jsonp(src, onload) {
   return () => s.remove();
 }
 
-// 场内时段: 工作日 9:15(集合竞价) ~ 15:05(收盘后留点余量)。
-// 按北京时间判不信浏览器时区。节假日不判 —— 快照回上一交易日收盘, 值不变, 空转一天可接受。
+// 北京时间的 Date(不信浏览器时区)。节假日一律不判 —— 快照回上一交易日收盘, 值不变,
+// 空转一天可接受。
+const bj = () => new Date(Date.now() + new Date().getTimezoneOffset() * 6e4 + 288e5);
+
+// A股场内时段: 工作日 9:15(集合竞价) ~ 15:05(收盘后留点余量)。
 export function aOpen() {
-  const t = new Date(Date.now() + new Date().getTimezoneOffset() * 6e4 + 288e5);
-  const m = t.getHours() * 60 + t.getMinutes();
+  const t = bj(), m = t.getHours() * 60 + t.getMinutes();
   return t.getDay() >= 1 && t.getDay() <= 5 && m >= 555 && m <= 905;
+}
+
+// 美股常规时段, 换算成北京时间: 夏令时 21:30~04:00, 冬令时 22:30~05:00 —— 直接取两者并集
+// 21:25~05:05, 冬天多轮询一小时(拿回同一个时间戳)比为 DST 维护一张日期表便宜。
+// 跨零点, 所以按「周一~周五的夜盘 + 周二~周六的凌晨」判: 周五那场落在北京周六凌晨。
+export function usOpen() {
+  const t = bj(), m = t.getHours() * 60 + t.getMinutes(), d = t.getDay();
+  if (m >= 21 * 60 + 25) return d >= 1 && d <= 5;
+  if (m <= 5 * 60 + 5) return d >= 2 && d <= 6;
+  return false;
 }
 
 /** 挂一个轮询：立刻跑一次，之后每 ms 一次。返回 clearInterval 用的清理函数。
