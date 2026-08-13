@@ -116,7 +116,7 @@ export default function BondPage() {
             </thead>
             <tbody>
               {items.map((b) => (
-                <tr key={b.code} className={HERO.includes(b.term) ? "hl" : ""}>
+                <tr key={b.code}>
                   <td>{b.term}</td>
                   <td className="nm">
                     {b.name}
