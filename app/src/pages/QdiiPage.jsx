@@ -308,22 +308,27 @@ const nyToBj = (s) => {
 const QCOLS = [
   ["px", "现价"], ["chg", "涨跌幅"], ["prem", "溢价率"], ["amt", "成交额"],
   ["w", "本周"], ["m", "本月"], ["y", "今年以来"], ["y1", "近1年"], ["y2", "近2年"],
-  ["size", "规模"], ["fee", "费率"],
+  ["y3", "近3年"], ["y5", "近5年"], ["size", "规模"], ["fee", "费率"],
 ];
-// 美股表: 少了溢价率/规模(腾讯美股快照没这两个字段), 多了近3年/近5年(日线根数上限比 A股
-// 高一倍多, 够精确取到 5 年前, 见 useBase)。两表差了四列, 不再从 QCOLS 减着算。
+// 美股表: 少了溢价率/规模(腾讯美股快照没这两个字段), 其余同上。两表差了两列, 不再从
+// QCOLS 减着算。
 const UCOLS = [
   ["px", "现价"], ["chg", "涨跌幅"], ["amt", "成交额"],
   ["w", "本周"], ["m", "本月"], ["y", "今年以来"], ["y1", "近1年"], ["y2", "近2年"],
   ["y3", "近3年"], ["y5", "近5年"], ["fee", "费率"],
 ];
 // 各表要哪几档「往前 N 年」, 一处定: 既是 useBase 要取的基准, 也对应上面的列。
-// A股只到近2年 —— 腾讯 A股日线一次最多 641 根(约 2.6 年), 再往前只有周线, 基准会落到
-// 「起点前最后一个周五」, 与精确日期差 ≤1 周; 宁可不出这两列, 不混两种口径。
-const CN_YEARS = [1, 2], US_YEARS = [1, 2, 3, 5];
-// 日线根数: A股 560 根 ≈ 2 年零 3 个月(一年约 243 个交易日); 美股 1300 根 ≈ 5.2 年
-// (一年约 252 个交易日, 实测首根落在 5 年前再往前 44 个交易日, 1400 就回 limit error)。
-const CN_BARS = 560, US_BARS = 1300;
+// 分两拨: years 从主请求那根 K 线里取基准; far 是主请求根数够不到的档, 各自再发一个小窗口
+// 请求(见 useBase)。请求数要抠 —— 每多一档 far 就是每只一个请求, A股这张表 12 只。
+// 实测(2026-08): 12 只里 10 只有 3 年历史, 只有 159941/513100/513300 满 5 年, 其余渲染成 —。
+const CN_YEARS = [1, 2, 3], CN_FAR = [5];
+const US_YEARS = [1, 2, 3, 5], US_FAR = []; // 美股 1300 根够到 5 年前, 一根请求全覆盖
+// 日线根数: A股 800 根 ≈ 3 年零 3 个月(一年约 243 个交易日, 实测首根落在 3 年前再往前
+// 约 70 个交易日, 够近3年); 美股 1300 根 ≈ 5.2 年(一年约 252 个交易日, 实测首根落在 5 年前
+// 再往前 44 个交易日, 1400 就回 limit error)。
+// A股那 800 根必须带 start 才给: param 的起止日期两个都留空时上限是 641 根(900+ 也照样只回
+// 640), 填了 start 才放到 800。填哪天不影响返回内容 —— 接口仍是「end 往前数 N 根」。
+const CN_BARS = 800, US_BARS = 1300, START = "2010-01-01";
 
 // 把刚落到 window 上的一批 v_xxx 快照串解析成行。两个市场共用: 字段位置 [3]/[32] 一样,
 // 差在字段总数、成交额单位、以及美股没有溢价率/流通市值(见上)。
@@ -377,11 +382,11 @@ function useSnap(list, open, ms) {
  * 用前复权序列: 今日现价就是复权基点, 区间内除权分红也不会把涨跌幅算歪。
  * (校验: 这样算出的今年以来 与腾讯快照 [62] 字段 12/12 完全一致)
  *
- * bars/years 见上方常量: 两个市场的日线根数上限不一样(A股 641 / 美股 1300), 能精确回溯的
- * 最远档位也就不一样。全部按精确日期取基准, 没有周线那种 ≤1 周的漂移。
+ * bars/years/far 见上方常量: 两个市场的单请求根数上限不一样(A股 800 / 美股 1300), 主请求
+ * 够不到的档(A股的近5年)各自再发一个小窗口请求。全部按精确日期取基准。
  * 各档都是价格涨跌(不是净值): 与其余列同口径, 也是场内买卖真吃到的收益 —— 与东财的
  * 净值收益差的那几个点就是溢价率变动本身(实测 159941 近1年 +30% vs 净值 +18.5%)。 */
-function useBase(list, bars, years) {
+function useBase(list, bars, years, far) {
   const [base, setBase] = useState({});
   useEffect(() => {
     const now = new Date(), p2 = (n) => String(n).padStart(2, "0");
@@ -395,25 +400,30 @@ function useBase(list, bars, years) {
       y: now.getFullYear() + "-01-01",
       ...Object.fromEntries(years.map((n) => ["y" + n, back(n)])),
     };
-    const kill = list.map(([sym, , , us]) => {
-      const v = "k_" + sym;
+    // 起点之前最后一个收盘。上市晚于起点(窗口整段空) -> undefined -> NaN -> 渲染成 —
+    const at = (rows, b) => { let c; for (const r of rows) { if (r[0] >= b) break; c = +r[2]; } return c; };
+    // 每只、每个窗口各自异步回来, 函数式更新才不会互相覆盖
+    const put = (code, o) => setBase((s) => ({ ...s, [code]: { ...s[code], ...o } }));
+    const kill = [];
+    for (const [sym, , , us] of list) {
       const ep = us ? "usfqkline" : "fqkline", code = us ? sym + ".OQ" : sym; // 美股: 另一个端点, 代码带 .OQ
-      return jsonp(
-        `https://web.ifzq.gtimg.cn/appstock/app/${ep}/get?_var=${v}&param=${code},day,,,${bars},qfq`,
-        () => {
-          const d = window[v].data[code], bars = d.qfqday || d.day;
-          // 起点之前最后一个收盘。上市晚于起点 -> undefined -> NaN -> 渲染成 —
-          const at = (b) => { let c; for (const r of bars) { if (r[0] >= b) break; c = +r[2]; } return c; };
-          // 每只各自异步回来, 函数式更新才不会互相覆盖
-          setBase((s) => ({
-            ...s,
-            [sym.slice(2)]: Object.fromEntries(Object.entries(bnd).map(([k, day]) => [k, at(day)])),
-          }));
-        },
-      );
-    });
+      // 主机是裸的 ifzq.gtimg.cn, 不是各处常见的 web.ifzq.gtimg.cn: 后者那层边缘按 IP 限流,
+      // 触发后**整个 fqkline 端点**对该 IP 一律回 501(连之前能用的 param 也回 501, 十几分钟
+      // 不恢复), 而裸域同一时刻同一 param 正常回数据。开页一次要发 2×12 个请求, 再叠上开发
+      // 期 StrictMode 双跑和刷几次页面, 很容易撞上 —— 所以既走裸域, 也把 far 压到只剩 1 档。
+      const ask = (v, span, fn) => kill.push(jsonp(
+        `https://ifzq.gtimg.cn/appstock/app/${ep}/get?_var=${v}&param=${code},day,${span},qfq`,
+        () => { const d = window[v].data[code]; fn(d.qfqday || d.day || []); },
+      ));
+      ask("k_" + sym, `${START},,${bars}`, (rows) =>
+        put(sym.slice(2), Object.fromEntries(Object.entries(bnd).map(([k, day]) => [k, at(rows, day)]))));
+      // far 的每档单独发一个「以那天收尾」的 10 根小窗口(param 里 start 留空、end 填那天),
+      // 10 根足够跨掉春节/国庆这种长假。超出范围时接口回空数组(且键从 qfqday 变成 day)。
+      for (const n of far)
+        ask(`k_${sym}_${n}`, `,${back(n)},10`, (rows) => put(sym.slice(2), { ["y" + n]: at(rows, back(n)) }));
+    }
     return () => kill.forEach((f) => f());
-  }, [list, bars, years]);
+  }, [list, bars, years, far]);
   return base;
 }
 
@@ -433,7 +443,7 @@ const perf = (rows, base) =>
 // 涨跌幅跳得慢些, 溢价率那列的 IOPV 本来就跟不上这个分辨率)。
 function CnTable() {
   const { rows: snap, ts } = useSnap(QDII, aOpen, 3000);
-  const rows = perf(snap, useBase(QDII, CN_BARS, CN_YEARS));
+  const rows = perf(snap, useBase(QDII, CN_BARS, CN_YEARS, CN_FAR));
   const { sorted, th } = useSort(rows, "chg"); // 默认涨跌幅降序
 
   // 极差(max − min)，只对百分比列(现价/成交额/规模各只之间没有可比性)。
@@ -484,6 +494,8 @@ function CnTable() {
                   <Pct v={r.y} />
                   <Pct v={r.y1} />
                   <Pct v={r.y2} />
+                  <Pct v={r.y3} />
+                  <Pct v={r.y5} />
                   <td>{Number.isFinite(r.size) ? r.size.toFixed(2) + "亿" : "—"}</td>
                   {/* 成本不套 Pct 的红绿: 恒为正, 且「高」不是好事 */}
                   <td>{r.fee.toFixed(2) + "%"}</td>
@@ -518,7 +530,7 @@ function CnTable() {
 // 屏幕上的价最多陈旧 10 秒。响应也小得多(两只 623B, 上表 12 只 6.1KB)。
 function UsTable() {
   const { rows: snap, ts } = useSnap(USETF, usOpen, 10000);
-  const rows = perf(snap, useBase(USETF, US_BARS, US_YEARS));
+  const rows = perf(snap, useBase(USETF, US_BARS, US_YEARS, US_FAR));
   const { sorted, th } = useSort(rows, "chg");
   if (!rows.length) return null; // 拉不到就整块不出现, 不占一张空卡片
 
