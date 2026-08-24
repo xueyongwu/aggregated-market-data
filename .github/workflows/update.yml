@@ -40,6 +40,8 @@ jobs:
           HITHINK_FINANCE_API_KEY: ${{ secrets.HITHINK_FINANCE_API_KEY }}
       - run: python -m pipeline.stock.index_perf
         continue-on-error: true  # 指数源(新浪/中证/同花顺)偶发失败不阻断, 页面用旧数据
+        env:
+          HITHINK_FINANCE_API_KEY: ${{ secrets.HITHINK_FINANCE_API_KEY }}  # 微盘股/可转债那两条
       - run: python -m pipeline.stock.nq_overnight
         continue-on-error: true  # 新浪外盘接口偶发失败不阻断, 页面用旧数据
       - run: python -m pipeline.stock.bond_rate

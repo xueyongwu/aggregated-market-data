@@ -1,13 +1,15 @@
 """宽基/特色指数今年以来涨跌幅 -> app/src/data/idx_data.js (AStockPage 排名条形图)。
 
-数据源(免费):
+数据源:
   tx      腾讯 web.ifzq.gtimg.cn 日线接口      沪深/北证/港股指数, 一次请求给全年日线
   sina    akshare stock_zh_index_daily        tx 的备源(akshare 封装随网站变, 故降为备)
   csindex akshare stock_zh_index_hist_csindex 中证2000(新浪/腾讯都无 932000)
-  ths     同花顺 d.10jqka.com.cn 日线接口      微盘股/可转债(883418/883981, 同花顺自编指数)
+  ths     同花顺官方 fuyao.aicubes.cn(要 API Key) 微盘股/可转债(883418.TI/883981.TI, 同花顺自编指数)
 
 基准 = 上年最后交易日收盘, YTD = 最新收盘/基准 - 1。
 单指数全部源失败时退回上次 idx_data.js 里的值并标 stale, 页面灰显; 没有旧值才少一根条。
+
+环境变量: HITHINK_FINANCE_API_KEY(同花顺, 只有 ths 那两条指数用得到)
 
 用法: python -m pipeline.stock.index_perf
 """
@@ -27,13 +29,13 @@ INDICES = [  # (名称, 源(按序尝试), 代码)
     ("中证500", TX, "sh000905"),
     ("中证1000", TX, "sh000852"),
     ("中证2000", ("csindex",), "932000"),
-    ("微盘股", ("ths",), "883418"),
+    ("微盘股", ("ths",), "883418.TI"),
     ("创业板50", TX, "sz399673"),
     ("科创50", TX, "sh000688"),
     ("科创100", TX, "sh000698"),
     ("科创200", TX, "sh000699"),
     ("北证50", TX, "bj899050"),
-    ("可转债", ("ths",), "883981"),
+    ("可转债", ("ths",), "883981.TI"),
     # 港股: 腾讯同一个 fqkline 接口, 代码前缀 hk。只挂 tx —— akshare 的 stock_zh_index_daily
     # 是 A 股口径不认 hk 代码, 挂了也是白挂一次。注意是港币计价, 与 A 股同图看趋势可以,
     # 严格说隔着汇率不同币种。
@@ -70,33 +72,23 @@ def csindex_close(symbol: str, start: str, end: str) -> pd.Series:
     return pd.Series(df["收盘"].values, index=pd.to_datetime(df["日期"]))
 
 
-def ths_close(symbol: str, years: list[int]) -> pd.Series:
-    """同花顺板块/自编指数日线。akshare 的封装按板块名查代码, 883* 指数不在名单里, 直连接口。"""
-    import py_mini_racer
-    import requests
-    from akshare.datasets import get_ths_js
+def ths_close(symbol: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
+    """同花顺自编指数日线(883418.TI 微盘股 / 883981.TI 可转债), 走官方 API。
 
-    js = py_mini_racer.MiniRacer()
-    js.eval(Path(get_ths_js("ths.js")).read_text())
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-        "Referer": "http://q.10jqka.com.cn",
-        "Host": "d.10jqka.com.cn",
-        "Cookie": f"v={js.call('v')}",
-    }
-    rows = {}
-    for y in years:
-        r = requests.get(f"https://d.10jqka.com.cn/v4/line/bk_{symbol}/01/{y}.js",
-                         headers=headers, timeout=15)
-        r.raise_for_status()
-        t = r.text
-        payload = json.loads(t[t.find("{"):t.rfind("}") + 1])
-        for rec in payload["data"].split(";"):
-            f = rec.split(",")  # date,open,high,low,close,...
-            rows[f[0]] = float(f[4])
-    s = pd.Series(rows)
-    s.index = pd.to_datetime(s.index)
-    return s.sort_index()
+    原先是直连 d.10jqka.com.cn 的内部接口, 得先用 py_mini_racer 跑 akshare 打包的
+    ths.js 算出反爬 cookie `v` —— 全项目最脆的一处, 人家改一次 js 就断。官方 API
+    同一份数据(2026-08-20 收盘逐位一致: 微盘股 2082.254 / 可转债 2033.24), 换掉了。
+    这两条没有备源: 只有同花顺自己编这两个指数。拉不到就走 main 里的 stale 降级。
+    """
+    from pipeline.stock.median_trend import ths_date, ths_get  # 同花顺客户端在那边, 别重写一份
+
+    d = ths_get("/a-share-index/prices/historical", thscode=symbol, interval="1d",
+                start=int(start.timestamp() * 1000), end=int(end.timestamp() * 1000))
+    rows = d["item"]
+    if not rows:
+        raise RuntimeError("同花顺无此指数日线")
+    return pd.Series([float(x["close_price"]) for x in rows],
+                     index=ths_date(pd.Series([x["date_ms"] for x in rows]))).sort_index()
 
 
 def close_series(src: str, sym: str, now: pd.Timestamp) -> pd.Series:
@@ -106,7 +98,7 @@ def close_series(src: str, sym: str, now: pd.Timestamp) -> pd.Series:
         return sina_close(sym)
     if src == "csindex":
         return csindex_close(sym, f"{now.year - 1}1201", now.strftime("%Y%m%d"))
-    return ths_close(sym, [now.year - 1, now.year])
+    return ths_close(sym, pd.Timestamp(f"{now.year - 1}-12-01", tz="Asia/Shanghai"), now)
 
 
 def ytd_item(name: str, src: str, sym: str, now: pd.Timestamp, jan1: pd.Timestamp) -> dict:
