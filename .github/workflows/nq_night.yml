@@ -27,8 +27,8 @@ jobs:
           path: |
             cache/daily_pctchg.parquet
             cache/nq_min.parquet
-          key: stock-cache-${{ github.run_id }}
-          restore-keys: stock-cache-
+          key: stock-cache-v2-${{ github.run_id }}
+          restore-keys: stock-cache-v2-
       - run: pip install pandas pyarrow requests
       - run: python -m pipeline.stock.nq_overnight
         # 未命中缓存时 trading_days() 读不到 daily_pctchg 会抛 —— 不让整个 job 红,

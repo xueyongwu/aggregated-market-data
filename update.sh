@@ -16,6 +16,8 @@ PY=.venv/bin/python
 what=${1:-all}
 
 run_stock() {
+  # 股票池含北交所, 只有同花顺给; 没 key 会静默降级到 baostock(慢 10 倍, 少 ~340 只)
+  [ -n "${HITHINK_FINANCE_API_KEY:-}" ] || echo "⚠️  没有 HITHINK_FINANCE_API_KEY，A股中位数会降级到 baostock（无北交所）"
   echo "▶ A股中位数..."   ; "$PY" -m pipeline.stock.median_trend --update
   echo "▶ 宽基指数..."     ; "$PY" -m pipeline.stock.index_perf            || echo "  (跳过)"
   echo "▶ 国债活跃券..."   ; "$PY" -m pipeline.stock.bond_rate             || echo "  (跳过)"

@@ -3,6 +3,6 @@ baostock          # A股逐股日线, median_trend.py 的回退源
 pandas
 pyarrow           # parquet 缓存
 akshare           # index_perf.py 的中证/新浪备源
-requests          # 腾讯/新浪/中国货币网/Kraken/纳斯达克/东财, 各脚本主源
+requests          # 腾讯/新浪/中国货币网/Kraken/纳斯达克/东财/同花顺, 各脚本主源
 beautifulsoup4    # scrape_housing_data.py
 lxml              # scrape_housing_data.py

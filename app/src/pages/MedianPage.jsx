@@ -150,7 +150,7 @@ export default function MedianPage() {
 
       <div className="card">
         <h2>
-          日中位数 <span className="dot">全市场当日涨跌幅的中位数(剔停牌)，红涨绿跌</span>
+          日中位数 <span className="dot">全 A 股(沪深 + 北交所)当日涨跌幅的中位数，剔停牌，红涨绿跌</span>
         </h2>
         <div ref={mainRef} className="chart main" />
       </div>

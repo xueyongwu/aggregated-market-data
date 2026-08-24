@@ -20,18 +20,24 @@ jobs:
           python-version: "3.12"
       # 这两份不进 git(每工作日被全量重写提交 2~3 次, 一年 ~1.3G 进 .git), 走 cache。
       # key 带 run_id 保证每次都存新的, restore-keys 前缀取最近一份;
+      # 前缀带版本号: 股票池口径变了(2026-08 加北交所)就 +1, 让旧缓存自然失效重建,
+      # 否则 --update 只往老缓存里追加当天, 序列前半段还是没北交所的窄口径。
       # nq_night.yml 用同一 prefix, 它只读 daily_pctchg、只写 nq_min, 存回去不会回退。
-      # 未命中不是故障: median_trend 无缓存自动走全量重拉(慢 10-20 分钟但数据完整),
+      # 未命中不是故障: median_trend 无缓存自动走全量重拉(同花顺 dump, ~1 分钟),
       # nq_min 缺了断一两天曲线, 次日 5:00 那趟补回。
       - uses: actions/cache@v4
         with:
           path: |
             cache/daily_pctchg.parquet
             cache/nq_min.parquet
-          key: stock-cache-${{ github.run_id }}
-          restore-keys: stock-cache-
+          key: stock-cache-v2-${{ github.run_id }}
+          restore-keys: stock-cache-v2-
       - run: pip install baostock pandas pyarrow akshare requests  # requests 是腾讯快照主源用的, 别靠 akshare 传递依赖
       - run: python -m pipeline.stock.median_trend --update
+        env:
+          # 股票池含北交所, 只有同花顺给; 历史/补缺口也走它的全市场 dump。
+          # 没这个 key 会降级到 baostock 逐股(慢 10 倍, 且少 ~340 只北交所)。
+          HITHINK_FINANCE_API_KEY: ${{ secrets.HITHINK_FINANCE_API_KEY }}
       - run: python -m pipeline.stock.index_perf
         continue-on-error: true  # 指数源(新浪/中证/同花顺)偶发失败不阻断, 页面用旧数据
       - run: python -m pipeline.stock.nq_overnight
