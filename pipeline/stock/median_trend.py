@@ -20,9 +20,9 @@
 依赖: pip install baostock pandas pyarrow
 """
 import argparse
-import io
 import json
 import os
+import tempfile
 from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
@@ -106,18 +106,54 @@ def ths_get(path: str, **params):
     return d["data"]
 
 
+DUMP_TRIES = 8
+
+
 def ths_dump(kind: str, columns: list[str] | None = None) -> pd.DataFrame:
-    """下载同花顺全市场 Parquet。
+    """下载同花顺全市场 Parquet。断点续传, 因为 daily-k 有 171MB 且跨境。
 
     签名端点只回一个 S3 预签名 URL, 约 5 分钟过期——拿到立刻下, 别缓存 URL。
     daily-k 全量 ~171MB/1000 万行(近 10 年), daily-k-10d ~1MB, adjustment-factors ~0.3MB。
+
+    必须续传而不是整份重来: 2026-08-24 在 GitHub runner 上实测, 171MB 拉到 5.6MB 就
+    IncompleteRead 断流, 整份重下等于赌运气。S3 回 Accept-Ranges: bytes(实测 206),
+    所以断在哪从哪续; 签名过期(403)就重签一个接着续, 已下的字节不浪费。
+    流式写盘而不是 r.content: 后者要把 171MB 整份读进内存才开始解析。
     """
     import requests
 
-    url = ths_get(f"/dump/market-dumps/{kind}/download-url")["presigned_url"]
-    r = requests.get(url, timeout=600)
-    r.raise_for_status()
-    return pd.read_parquet(io.BytesIO(r.content), columns=columns)
+    fd, tmp = tempfile.mkstemp(suffix=f".{kind}.parquet", dir=CACHE)
+    os.close(fd)
+    tmp = Path(tmp)
+    try:
+        url, done, expect, stalled = None, 0, None, 0
+        for _ in range(DUMP_TRIES):
+            if url is None:
+                url = ths_get(f"/dump/market-dumps/{kind}/download-url")["presigned_url"]
+            before = done
+            try:
+                headers = {"Range": f"bytes={done}-"} if done else {}
+                with requests.get(url, headers=headers, stream=True,
+                                  timeout=(10, 120)) as r:
+                    if r.status_code == 403:  # 签名过期, 重签接着续
+                        url = None
+                        continue
+                    r.raise_for_status()
+                    expect = done + int(r.headers.get("Content-Length") or 0)
+                    with open(tmp, "ab" if done else "wb") as f:
+                        for chunk in r.iter_content(1 << 20):
+                            f.write(chunk)
+                            done += len(chunk)
+            except requests.RequestException as e:
+                print(f"  {kind} 断在 {done}/{expect} 字节({e}), 续传...", flush=True)
+            if expect and done >= expect:
+                return pd.read_parquet(tmp, columns=columns)
+            stalled = stalled + 1 if done == before else 0
+            if stalled >= 2:  # 连着两轮一个字节都没进, 再试也是白试
+                break
+        raise RuntimeError(f"同花顺 {kind} 只下到 {done}/{expect} 字节")
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def ths_date(ms: pd.Series) -> pd.Series:
@@ -553,7 +589,10 @@ def main():
             # 降级要付双倍代价: 慢 10 倍, 且 baostock 没有北交所, 池子会少 ~340 只。
             # 但比不出数强——median_data.js 塌了次日 --update 不回补, 要一整年才长回来。
             print(f"同花顺 dump 失败({e}), 回退 baostock 逐股(~10-20 分钟, 无北交所)...", flush=True)
-            df = fetch_history(all_a_codes(a.end), a.start, a.end)
+            # 代码表可能仍来自同花顺(含北交所), 但 baostock 拉不到那 340 只,
+            # 带上只是白等 340 次空响应。
+            codes = [c for c in all_a_codes(a.end) if not c.startswith("bj.")]
+            df = fetch_history(codes, a.start, a.end)
     else:
         print("用缓存。--refresh 重拉, --update 追加今日。")
         df = pd.read_parquet(RAW)

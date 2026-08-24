@@ -1,10 +1,13 @@
 """腾讯快照解析 + baostock 不可用降级 自检: python -m tests.test_tencent_parse"""
+import io
 import sys
 import tempfile
+import types
 from contextlib import contextmanager
 from pathlib import Path
 
 import pandas as pd
+import requests
 
 from pipeline.stock import median_trend as mt
 from pipeline.stock.median_trend import parse_tencent_quotes
@@ -259,6 +262,55 @@ def test_dump_pct_adjusts_for_dividends():
     assert "sz.399001" not in got, got            # 指数不是 A 股
     assert "sh.600004" not in got, got            # 停牌: 成交量 0
     assert set(out["date"]) == {pd.Timestamp("2026-07-22")}, out  # 前一天只用来当基准
+
+
+class _Resp:
+    """假的流式响应: 只吐 cut 个字节就断线, cut=None 表示完整吐完。"""
+
+    def __init__(self, data, cut):
+        self.data, self.cut = data, cut
+        self.status_code = 206 if cut is not None else 200
+        self.headers = {"Content-Length": str(len(data))}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        pass
+
+    def raise_for_status(self):
+        pass
+
+    def iter_content(self, n):
+        yield self.data[:self.cut] if self.cut else self.data
+        if self.cut:
+            raise requests.RequestException("Connection broken: IncompleteRead")
+
+
+def test_dump_resumes_after_broken_download():
+    """daily-k 有 171MB 且跨境, 2026-08-24 在 CI 上实测拉到 5.6MB 就断。
+    必须从断点续传(S3 支持 Range), 整份重下是赌运气。"""
+    buf = io.BytesIO()
+    pd.DataFrame({"thscode": ["600000.SH"], "date_ms": [1], "x": [1.0]}).to_parquet(buf)
+    blob, starts = buf.getvalue(), []
+
+    def fake_get(url, headers=None, stream=None, timeout=None, **k):
+        start = int((headers or {}).get("Range", "bytes=0-")[6:].split("-")[0])
+        starts.append(start)
+        return _Resp(blob[start:], 20 if start == 0 else None)  # 第一次只给 20 字节
+
+    fake = types.SimpleNamespace(get=fake_get, RequestException=requests.RequestException)
+    orig = (mt.ths_get, sys.modules.get("requests"))
+    mt.ths_get = lambda path, **q: {"presigned_url": "http://fake"}
+    sys.modules["requests"] = fake  # ths_dump 里是函数内 import, 走 sys.modules
+    try:
+        df = mt.ths_dump("daily-k")
+    finally:
+        mt.ths_get, sys.modules["requests"] = orig
+
+    assert len(df) == 1, df
+    assert starts == [0, 20], starts  # 第二次从第 20 字节续, 不是从头重来
+    assert not list(Path(mt.CACHE).glob("*.daily-k.parquet")), "临时文件没清干净"
 
 
 def main():
