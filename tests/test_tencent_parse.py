@@ -77,7 +77,7 @@ def with_live_baostock(days, tencent_result, body, dump_ok=True):
             seen["tencent"] = codes
             return tencent_result
 
-        def fake_fetch(codes, start, end, skip_done=True):
+        def fake_fetch(codes, start, end):
             seen["baostock_window"] = (start, end)
             return "from_baostock"
 

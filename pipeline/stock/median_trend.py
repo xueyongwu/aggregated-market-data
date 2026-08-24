@@ -219,17 +219,17 @@ def all_a_codes(day: str) -> list[str]:
     return [c for c in codes if c.startswith(A_PREFIXES)]
 
 
-def fetch_history(codes: list[str], start: str, end: str, skip_done: bool = True) -> pd.DataFrame:
-    """baostock 逐股拉日线涨跌幅, 每100股落盘。
+def fetch_history(codes: list[str], start: str, end: str) -> pd.DataFrame:
+    """baostock 逐股重拉 start..end 窗口, 每 100 股落盘, 按 (date,code) 去重合并。
 
-    skip_done=True: 首次全量, 跳过已缓存 code(断点续传)。
-    skip_done=False: 增量更新, 全部重拉 start..end 窗口, 按 (date,code) 去重合并。
+    只剩「同花顺 dump 也挂了, 拿它补几天缺口」这一个用途——全量重建走 dump, 不再逐股
+    (慢 10 倍, 且 baostock 没有北交所)。原先那个跳过已缓存 code 的断点续传开关
+    随全量路径一起删了: 补窗口本来就要全部重拉。
     """
     import baostock as bs
 
     have = pd.read_parquet(RAW) if RAW.exists() else pd.DataFrame(columns=["date", "code", "pct"])
-    done = set(have["code"].unique()) if skip_done else set()
-    todo = [c for c in codes if c not in done]
+    todo = list(codes)
     rows = [have]
 
     def _login():
@@ -249,7 +249,7 @@ def fetch_history(codes: list[str], start: str, end: str, skip_done: bool = True
             recs.append(rs.get_row_data())
         return recs
 
-    print(f"待拉取 {len(todo)} 股(已缓存 {len(done)})。", flush=True)
+    print(f"待拉取 {len(todo)} 股。", flush=True)
     with bs_session():
         for i, code in enumerate(todo, 1):
             recs = None
@@ -495,7 +495,7 @@ def update_incremental(end: str) -> pd.DataFrame | None:
         print("腾讯与同花顺都没数据且 baostock 不可用, 本次不更新。", flush=True)
         return None
     if df is None:  # baostock 增量: 重拉最近10天窗口, 按 (date,code) 去重合并
-        df = fetch_history(codes, recent, end, skip_done=False)
+        df = fetch_history(codes, recent, end)
     return df
 
 
@@ -582,17 +582,12 @@ def main():
     elif a.refresh or not RAW.exists():
         if a.refresh and RAW.exists():
             RAW.unlink()
-        try:
-            print("全市场拉取中(同花顺 dump, ~100 秒)...")
-            df = fetch_history_dump(a.start, a.end)
-        except Exception as e:
-            # 降级要付双倍代价: 慢 10 倍, 且 baostock 没有北交所, 池子会少 ~340 只。
-            # 但比不出数强——median_data.js 塌了次日 --update 不回补, 要一整年才长回来。
-            print(f"同花顺 dump 失败({e}), 回退 baostock 逐股(~10-20 分钟, 无北交所)...", flush=True)
-            # 代码表可能仍来自同花顺(含北交所), 但 baostock 拉不到那 340 只,
-            # 带上只是白等 340 次空响应。
-            codes = [c for c in all_a_codes(a.end) if not c.startswith("bj.")]
-            df = fetch_history(codes, a.start, a.end)
+        # 这里是「重写整份序列」, 失败就抛, 不降级 baostock。
+        # 用没有北交所的窄口径重写会把整条曲线换成另一个口径, 而且不自愈: 次日 --update
+        # 只往这份缓存追加当天(腾讯是有北交所的), 序列前半段 5200 后半段 5540, 更难看。
+        # 抛错 = CI 那步红 + 不 commit, 页面保留 git 里那份完整的, 比写窄口径强。
+        print("全市场拉取中(同花顺 dump, ~2 分钟)...")
+        df = fetch_history_dump(a.start, a.end)
     else:
         print("用缓存。--refresh 重拉, --update 追加今日。")
         df = pd.read_parquet(RAW)
