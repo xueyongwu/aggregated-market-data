@@ -164,10 +164,10 @@ table,
   display: none;
 }
 
-/* 780 而不是别处那个 680：7 个标签横排要 ~705px，加深浅色开关和左右内边距，
- * 735 以下横条就把页面顶出横向滚动条了(原 8 项时是 800/830/860 那组数)。
+/* 860 而不是别处那个 680：7 个标签横排要 ~780px，加深浅色开关和左右内边距，
+ * 815 以下横条就把页面顶出横向滚动条了(6 项时是 780 那组数)。
  * 加/改导航项要重测。页面其余部分的窄屏断点仍是 680。 */
-@media (max-width: 780px) {
+@media (max-width: 860px) {
   .nav-in {
     padding: 7px 10px;
   }
@@ -284,6 +284,12 @@ table,
   gap: 10px;
 }
 
+/* 一组瓦片的小标题(说明这组数的口径/区间), 贴在 .tiles 上方 */
+.tiles-h {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 18px 6px -8px;
+}
 .tiles {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -314,9 +320,24 @@ table,
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
+/* 数值后缀的单位(股/元): 跟着大数字走, 不换行 */
+.tile .v small {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-left: 4px;
+}
 .tile .u {
   color: var(--ink2);
   font-size: 12px;
+}
+/* 副标里的第二项(如「· 净投入 87,338.84」): 宽屏跟在后面, 窄屏另起一行 ——
+   两列布局下它会从「净投入」和数字之间折断 */
+.tile .u i {
+  font-style: normal;
+}
+.tile .u i::before {
+  content: " · ";
 }
 .tile .sep {
   color: var(--muted);
@@ -453,6 +474,11 @@ table.dt {
   .dt td {
     padding: 6px;
   }
+  /* 窄屏藏起可推算/低信息量的列(金额=价×量、费用)和日期里的年份 —— 表格本来就能横滚,
+     但首屏能一眼看全的列越多越好 */
+  .mHide {
+    display: none;
+  }
 }
 
 /* ========== 图表容器高度 ========== */
@@ -489,6 +515,8 @@ table.dt {
   .sub { font-size: 11px; white-space: nowrap; gap: 6px; }
   .tile { padding: 12px; }
   .tile .v { font-size: 19px; }
+  .tile .u i { display: block; margin-top: 3px; }
+  .tile .u i::before { content: none; }
   .card { padding: 12px 6px 6px; }
   .card h2 span.dot { display: block; margin-top: 3px; }  /* 副标题另起一行, 否则从句子中间折断 */
   .card h2 span.dot::before { content: none; }
