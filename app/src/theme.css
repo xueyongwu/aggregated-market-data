@@ -310,6 +310,15 @@ table,
   flex-direction: column;
   gap: 6px;
 }
+/* 派生瓦片(由同组前几块相减得来): 蓝色强调, 深浅皮都用 --blue 兑出底色 */
+.tile.derived {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 8%, var(--surface));
+}
+.tile.derived .k,
+.tile.derived .v {
+  color: var(--blue);
+}
 .tile .k {
   color: var(--muted);
   font-size: 12px;
@@ -396,6 +405,16 @@ code {
 .stale {
   opacity: 0.55;
 }
+
+/* ========== 定投页(信息密度高: 两组瓦片 + 图 + 60 行明细, 通用间距在这页太散) ========== */
+.wrap.dca { padding-top: 16px; }
+.wrap.dca > header { margin-bottom: 8px; }
+.wrap.dca .tiles { gap: 10px; margin: 0 0 12px; }
+.wrap.dca .tiles-h { margin: 14px 6px 6px; }
+.wrap.dca .tile { padding: 10px 12px; gap: 4px; }
+.wrap.dca .tile .v { font-size: 21px; }
+.wrap.dca .card { padding: 12px 10px 6px; margin-bottom: 12px; }
+.wrap.dca .dt th, .wrap.dca .dt td { padding: 5px 8px; }
 
 /* ========== 表格(纳指QDII / 美股) ========== */
 .tWrap {

@@ -13,3 +13,5 @@ dist/
 # 新增缓存文件要同时改这里和 workflow 的 git add / cache path。
 cache/*
 !cache/st_codes.json
+
+.claude/settings.local.json

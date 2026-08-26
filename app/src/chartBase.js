@@ -7,7 +7,7 @@ export const COLORS = [
   "grid", "baseline", "surface", "tip", "tiplabel",
 ];
 
-export const fmtP = (v) => (v >= 0 ? "+" : "") + v.toFixed(2) + "%";
+export const fmtP = (v, d = 2) => (v >= 0 ? "+" : "") + v.toFixed(d) + "%";
 
 export const tip = (C) => ({
   trigger: "axis",

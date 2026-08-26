@@ -17,11 +17,18 @@ export function ThemeProvider({ children }) {
     () => (localStorage.theme === "dark" ? "dark" : "light"),
   );
   useEffect(() => {
-    if (theme === "dark") document.documentElement.dataset.theme = "dark";
-    else delete document.documentElement.dataset.theme;
     localStorage.theme = theme;
   }, [theme]);
-  const toggle = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  // <html> 上的属性在这里同步改掉, 不能等 useEffect: 子组件的 effect 先于父组件跑, 图表 effect
+  // 会赶在换肤前 vars() 现读, 读到上一套色(dark→light 后分隔线留着深色)。首帧那次由 index.html
+  // 的内联脚本负责。
+  const toggle = () =>
+    setTheme((t) => {
+      const next = t === "dark" ? "light" : "dark";
+      if (next === "dark") document.documentElement.dataset.theme = "dark";
+      else delete document.documentElement.dataset.theme;
+      return next;
+    });
   return <Ctx.Provider value={{ theme, toggle }}>{children}</Ctx.Provider>;
 }
 

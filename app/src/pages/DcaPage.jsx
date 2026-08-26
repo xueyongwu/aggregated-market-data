@@ -17,6 +17,8 @@ const money = (v) => v.toLocaleString("zh-CN", { minimumFractionDigits: 2, maxim
 // Safari 不认 "YYYY-MM-DD HH:MM:SS", 换成斜杠再解析(同 QdiiPage)
 const week = (t) => "周" + "日一二三四五六"[new Date(t.slice(0, 10).replace(/-/g, "/")).getDay()];
 const signed = (v) => (v >= 0 ? "+" : "−") + money(Math.abs(v));
+// 持有时长: 首笔成交至今的自然日。没做「清仓后重新计时」—— 从没清过仓, 真清了这口径本身就得重定义。
+const held = (t) => Math.floor((Date.now() - new Date(t.slice(0, 10).replace(/-/g, "/"))) / 864e5);
 
 // 波段统计的起点(含当日)。**必须是周一** —— 下面按自然周认定「每周第一笔买入 = 周定投」，
 // 从周中切会把那周已经打过的定投当成加仓。2026-06-29 之前是建仓期(6 月那波大额进出)，
@@ -76,9 +78,9 @@ export default function DcaPage() {
       if (!first && !aOpen()) return;
       first = false;
       jsonp("https://qt.gtimg.cn/q=" + DCA.code, () => {
-        const f = (window["v_" + DCA.code] || "").split("~"); // [3]现价 [4]昨收 [32]涨跌幅%
+        const f = (window["v_" + DCA.code] || "").split("~"); // [3]现价 [4]昨收
         const p = +f[3];
-        if (p > 0) setLive({ p, prev: +f[4], chg: +f[32] });
+        if (p > 0) setLive({ p, prev: +f[4] });
       });
     }, 3000); // 3s: 同 BondPage 的日内轮询, 单只快照回 ~200B
   }, []);
@@ -107,6 +109,9 @@ export default function DcaPage() {
       },
       xAxis: { ...xDate(C), data: R.map((r) => r.t.slice(0, 10)) },
       yAxis: yPrice(C),
+      // 只用 inside(滚轮/双指捏合缩放 + 拖动平移), 不上 slider —— slider 要多注册一个
+      // DataZoomSliderComponent 进包, 还要在窄屏再让出一条 ~30px 的横条。
+      dataZoom: [{ type: "inside" }],
       series: [
         {
           name: "成交价",
@@ -115,7 +120,10 @@ export default function DcaPage() {
             value: +r.price.toFixed(3),
             itemStyle: { color: r.qty > 0 ? C.up : C.down },
           })),
-          symbolSize: 5,
+          symbolSize: MOBILE ? 3.5 : 5, // 窄屏点密, 小一号才不糊成一条
+          // 默认 'auto' 会在点挤到一起时自动省略符号 —— 窄屏下 79 笔成交只剩几个点。
+          // 这些点就是这张图的主体(红买绿卖), 宁可挤也不能少。
+          showAllSymbol: true,
           lineStyle: { width: 1, color: C.muted, opacity: 0.5 },
           markLine: {
             silent: true,
@@ -149,7 +157,7 @@ export default function DcaPage() {
   }, [V, theme, now]);
 
   return (
-    <div className="wrap">
+    <div className="wrap dca">
       <header>
         <div className="sub">
           {DCA.name} · {DCA.code.slice(2)} · 最后一笔 {lastTrade.t.slice(0, 10)}
@@ -160,7 +168,7 @@ export default function DcaPage() {
         <div className="tile">
           <span className="k">持仓市值</span>
           <span className="v">{money(value)}<small>元</small></span>
-          <span className="u">{V.shares.toLocaleString()} 股</span>
+          <span className="u">{V.shares.toLocaleString()} 股 · 持有 {held(DCA.trades[0][0])} 天</span>
         </div>
         <div className="tile">
           <span className="k">摊薄成本</span>
@@ -174,7 +182,7 @@ export default function DcaPage() {
           <span className="k">总盈亏</span>
           <span className={`v ${sign(total)}`}>{signed(total)}</span>
           <span className={`u ${sign(total)}`}>
-            {fmtP((total / V.net) * 100)}
+            {fmtP((total / V.net) * 100, 3)}
             <i>净投入 {money(V.net)}</i>
           </span>
         </div>
@@ -185,7 +193,7 @@ export default function DcaPage() {
           ) : (
             <>
               <span className={`v ${sign(today)}`}>{signed(today)}</span>
-              <span className={`u ${sign(today)}`}>{fmtP(live.chg)}</span>
+              <span className={`u ${sign(today)}`}>{fmtP((now / live.prev - 1) * 100, 3)}</span>
             </>
           )}
         </div>
@@ -208,10 +216,10 @@ export default function DcaPage() {
           <span className="v">{S.cut.toLocaleString()}<small>股</small></span>
           <span className="u">{S.cutN} 笔</span>
         </div>
-        <div className="tile">
-          <span className="k">加仓剩余</span>
+        <div className="tile derived">
+          <span className="k">低点加仓剩余</span>
           <span className="v">{S.left.toLocaleString()}<small>股</small></span>
-          <span className="u">加仓 − 减仓</span>
+          <span className="u">低点加仓 − 新高减仓</span>
         </div>
       </div>
 
