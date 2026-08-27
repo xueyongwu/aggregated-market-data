@@ -11,7 +11,7 @@ import "./theme.css";
 // 全挤进首屏那个 chunk。lazy 让 Vite 按页切包，只下当前这页要的那份。
 const PAGES = [
   { id: "qdii", nav: "纳指 · QDII", El: lazy(() => import("./pages/QdiiPage")) },
-  { id: "dca", nav: "定投记录", El: lazy(() => import("./pages/DcaPage")) },
+  { id: "dca", nav: "定投+", El: lazy(() => import("./pages/DcaPage")) },
   { id: "us", nav: "美股纳指100", El: lazy(() => import("./pages/UsPage")) },
   { id: "median", nav: "A股中位数", El: lazy(() => import("./pages/MedianPage")) },
   { id: "index", nav: "宽基指数", El: lazy(() => import("./pages/IndexPage")) },
