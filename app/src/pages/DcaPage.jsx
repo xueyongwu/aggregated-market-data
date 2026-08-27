@@ -51,6 +51,16 @@ function swing(trades) {
   return { dca, dcaN, add, addN, cut, cutN, left: add - cut };
 }
 
+// 现价虚线：轮询每变一次价就重画整张图太浪费，单拎出来走 setOption 增量更新。
+// 标签贴左端(y 轴那侧)画在线上方: 默认的 end 落在 grid 外, 会被卡片右边缘裁掉半截
+const markLine = (C, p) => ({
+  silent: true,
+  symbol: "none",
+  lineStyle: { color: C.blue, type: "dashed" },
+  label: { position: "insideStartTop", color: C.muted, fontSize: 11, formatter: "现价 " + p.toFixed(3) },
+  data: [{ yAxis: p }],
+});
+
 /** 逐笔滚出持仓与摊薄成本。费用计入买入成本、冲减卖出收入。 */
 function calc(trades) {
   let shares = 0, bought = 0, sold = 0;
@@ -66,6 +76,7 @@ function calc(trades) {
 export default function DcaPage() {
   const { theme } = useTheme();
   const box = useRef(null);
+  const chart = useRef(null);
   const V = useMemo(() => calc(DCA.trades), []);
   const S = useMemo(() => swing(DCA.trades), []);
   const lastTrade = V.rows[V.rows.length - 1];
@@ -80,7 +91,8 @@ export default function DcaPage() {
       jsonp("https://qt.gtimg.cn/q=" + DCA.code, () => {
         const f = (window["v_" + DCA.code] || "").split("~"); // [3]现价 [4]昨收
         const p = +f[3];
-        if (p > 0) setLive({ p, prev: +f[4] });
+        // 3s 一轮多数时候价格没动，同值时保留旧对象，免得整页(含 79 行明细)白重渲一次
+        if (p > 0) setLive((o) => (o && o.p === p && o.prev === +f[4] ? o : { p, prev: +f[4] }));
       });
     }, 3000); // 3s: 同 BondPage 的日内轮询, 单只快照回 ~200B
   }, []);
@@ -95,6 +107,7 @@ export default function DcaPage() {
     const C = vars(...COLORS);
     const R = V.rows;
     const m = echarts.init(box.current, null, { renderer: "canvas" });
+    chart.current = m;
     m.setOption({
       grid: { left: GL, right: MOBILE ? 12 : 20, top: 24, bottom: 30 },
       tooltip: {
@@ -125,19 +138,6 @@ export default function DcaPage() {
           // 这些点就是这张图的主体(红买绿卖), 宁可挤也不能少。
           showAllSymbol: true,
           lineStyle: { width: 1, color: C.muted, opacity: 0.5 },
-          markLine: {
-            silent: true,
-            symbol: "none",
-            lineStyle: { color: C.blue, type: "dashed" },
-            // 标签贴左端(y 轴那侧)画在线上方: 默认的 end 落在 grid 外, 会被卡片右边缘裁掉半截
-            label: {
-              position: "insideStartTop",
-              color: C.muted,
-              fontSize: 11,
-              formatter: "现价 " + now.toFixed(3),
-            },
-            data: [{ yAxis: now }],
-          },
         },
         {
           name: "摊薄成本",
@@ -152,9 +152,15 @@ export default function DcaPage() {
     addEventListener("resize", onResize);
     return () => {
       removeEventListener("resize", onResize);
+      chart.current = null;
       m.dispose();
     };
-  }, [V, theme, now]);
+  }, [V, theme]);
+
+  // 现价变了只重设那条虚线。theme 在依赖里是因为上面重建后图里没有 markLine, 要补回来。
+  useEffect(() => {
+    chart.current?.setOption({ series: [{ markLine: markLine(vars(...COLORS), now) }] });
+  }, [now, theme]);
 
   return (
     <div className="wrap dca">
