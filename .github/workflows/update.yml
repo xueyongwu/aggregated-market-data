@@ -52,7 +52,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add app/src/data/median_data.js app/src/data/idx_data.js \
+          git add app/src/data/median_data.js app/src/data/turnover_data.js \
+                  app/src/data/margin_data.js \
+                  app/src/data/idx_data.js \
                   app/src/data/nq_data.js app/src/data/bond_data.js \
                   cache/st_codes.json
           git diff --cached --quiet && exit 0

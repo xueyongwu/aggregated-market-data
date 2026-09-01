@@ -1,5 +1,6 @@
 """腾讯快照解析 + baostock 不可用降级 自检: python -m tests.test_tencent_parse"""
 import io
+import json
 import sys
 import tempfile
 import types
@@ -158,7 +159,7 @@ def test_update_without_cache_refetches_all():
     必须走全量重拉。走增量的话只补最近 10 天窗口, median_data.js 从「今年以来」
     静默塌成 10 天 —— sanity_check 不查条数, 塌了照样 commit。"""
     orig = (mt.RAW, mt.all_a_codes, mt.fetch_history_dump, mt.update_incremental,
-            mt.export_data_js, sys.argv)
+            mt.export_data_js, mt.export_turnover, mt.export_margin, sys.argv)
     seen = {}
 
     def fake_full(start, end, recent_only=False):
@@ -172,12 +173,13 @@ def test_update_without_cache_refetches_all():
         mt.fetch_history_dump = fake_full
         mt.update_incremental = lambda end: seen.setdefault("incremental", True)
         mt.export_data_js = lambda df, out: seen.setdefault("exported", len(df))
+        mt.export_turnover = mt.export_margin = lambda out: None  # 这两条会真联网, 本套件不联网
         sys.argv = ["median_trend", "--update", "--end", "2026-07-22"]
         try:
             mt.main()
         finally:
             (mt.RAW, mt.all_a_codes, mt.fetch_history_dump, mt.update_incremental,
-             mt.export_data_js, sys.argv) = orig
+             mt.export_data_js, mt.export_turnover, mt.export_margin, sys.argv) = orig
     assert "incremental" not in seen, seen
     assert seen.get("full", ("", "", None))[0].endswith("-01-01"), seen  # 从年初拉, 不是 10 天窗口
     assert seen.get("full", ("", "", None))[2] is False, seen          # 全量 dump, 不是 10 日增量那份
@@ -311,6 +313,92 @@ def test_dump_resumes_after_broken_download():
     assert len(df) == 1, df
     assert starts == [0, 20], starts  # 第二次从第 20 字节续, 不是从头重来
     assert not list(Path(mt.CACHE).glob("*.daily-k.parquet")), "临时文件没清干净"
+
+
+def with_ths_turnover(days, sh, sz):
+    """假的同花顺指数日线 -> export_turnover 写出的 payload。"""
+    def fake(path, **q):
+        assert path == "/a-share-index/prices/historical", path
+        amt = sh if q["thscode"].endswith(".SH") else sz
+        return {"item": [{"date_ms": int(pd.Timestamp(d, tz="Asia/Shanghai").timestamp() * 1000),
+                          "turnover": amt} for d in days]}
+
+    orig, mt.ths_get = mt.ths_get, fake
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "turnover_data.js"
+            mt.export_turnover(out)
+            t = out.read_text(encoding="utf-8")
+            return json.loads(t[t.index("=") + 1:t.rindex(";")])
+    finally:
+        mt.ths_get = orig
+
+
+def test_turnover_sums_two_exchanges():
+    """沪 + 深 -> 万亿, 一天不多一天不少。"""
+    p = with_ths_turnover(pd.bdate_range("2024-01-02", periods=300), sh=6e11, sz=1.4e12)
+    assert p["amt"][0] == 2.0, p["amt"][:3]
+    assert (p["dates"][0], p["dates"][-1]) == ("2024-01-02", "2025-02-24"), p["dates"][0]
+    assert len(p["dates"]) == len(p["amt"]) == 300
+    assert "updated" not in p, "带时间戳会让节假日重跑白刷一次 commit"
+
+
+def test_turnover_empty_raises():
+    """窗口超 ~5 年时接口静默回空(不报错), 必须抛, 否则写出一份空数据。"""
+    try:
+        with_ths_turnover([], sh=6e11, sz=1.4e12)
+    except (RuntimeError, IndexError):
+        return
+    raise AssertionError("空返回没抛错")
+
+
+def with_em_margin(days, bal, ratio):
+    """假的东财两融报表(按 pageSize 分页) -> (export_margin 写出的 payload, 请求过的页码)。"""
+    size = mt.MARGIN_PAGE
+    rows = [{"DIM_DATE": f"{d:%Y-%m-%d} 00:00:00", "RZRQYE": bal, "RZYEZB": ratio} for d in days]
+    pages, hits = max(1, -(-len(rows) // size)), []
+
+    class Resp:
+        def __init__(self, page):
+            hits.append(page)
+            self.page = page
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            if not rows:
+                return {"result": None}  # 真接口空结果就是这个形状
+            return {"result": {"pages": pages, "data": rows[(self.page - 1) * size:self.page * size]}}
+
+    fake = types.SimpleNamespace(get=lambda url, **kw: Resp(kw["params"]["pageNumber"]))
+    orig, sys.modules["requests"] = sys.modules["requests"], fake  # 函数内 import, 走 sys.modules
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "margin_data.js"
+            mt.export_margin(out)
+            t = out.read_text(encoding="utf-8")
+            return json.loads(t[t.index("=") + 1:t.rindex(";")]), hits
+    finally:
+        sys.modules["requests"] = orig
+
+
+def test_margin_pages_through():
+    """pageSize 上限 800: 必须按 result.pages 翻完, 少翻一页就是静默丢掉最近几年。"""
+    p, hits = with_em_margin(pd.bdate_range("2010-03-31", periods=2100), bal=2.6e12, ratio=2.6)
+    assert hits == [1, 2, 3], hits
+    assert len(p["dates"]) == len(p["bal"]) == len(p["ratio"]) == 2100, len(p["dates"])
+    assert (p["dates"][0], p["bal"][0], p["ratio"][0]) == ("2010-03-31", 2.6, 2.6), p["dates"][0]
+    assert "updated" not in p, "带时间戳会让节假日重跑白刷一次 commit"
+
+
+def test_margin_empty_raises():
+    """拉不到就别写空文件, 页面留上次那份。"""
+    try:
+        with_em_margin([], bal=2.6e12, ratio=2.6)
+    except RuntimeError:
+        return
+    raise AssertionError("空返回没抛错")
 
 
 def main():

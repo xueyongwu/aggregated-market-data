@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概览
 
-七块看板合并成的一个单页应用：纳指QDII、美股纳指100、A股中位数、宽基指数、国债活跃券、70城房价、定投记录。
+七块看板合并成的一个单页应用：纳指QDII、美股纳指100、A股趋势、宽基指数、国债活跃券、70城房价、定投记录。
 由 `stock-analysis` 和 `housing-price-trends` 两个仓库整合而来。
 
 数据管道形状统一：**Python 抓取脚本 → `app/src/data/*.js`（ES module）→ React 页面**。
@@ -20,7 +20,8 @@ data/  cache/             房价原始数据 / parquet 缓存
 ```
 
 ```
-stock.median_trend    同花顺 dump/腾讯快照 → cache/daily_pctchg.parquet → median_data.js → MedianPage
+stock.median_trend    同花顺 dump/腾讯快照 → cache/daily_pctchg.parquet → median_data.js → AStockPage
+                      同花顺指数成交额 → turnover_data.js、东财两融 → margin_data.js（同页）
 stock.index_perf      腾讯/新浪/中证/同花顺 ──────────────────────→ idx_data.js    → IndexPage
 stock.bond_rate       中国货币网 ────────────────────────────────→ bond_data.js   → BondPage
 stock.nq_overnight    新浪外盘 NQ  → cache/nq_min.parquet ───────→ nq_data.js     → QdiiPage
@@ -97,7 +98,7 @@ cd app && pnpm lint     # eslint(当前零 error，别放宽)
 用到新的图表类型或组件时，必须先在 `echarts.use([...])` 里注册 —— 漏注册时 echarts **不报错**，
 而是静默不渲染那部分。「option 写了但没效果」先查这里。
 
-**路由是 hash**（`#/qdii` `#/us` `#/median` `#/index` `#/bond` `#/housing` `#/dca`，导航里 `dca` 排第二，
+**路由是 hash**（`#/qdii` `#/us` `#/astock` `#/index` `#/bond` `#/housing` `#/dca`，导航里 `dca` 排第二，
 落地页是第一个）：GitHub Pages 纯静态托管，history 路由刷新会 404。
 `app/vite.config.js` 的 `base` 是 `/aggregated-market-data/`，换托管方式要一起改。
 
@@ -165,6 +166,21 @@ cd app && pnpm lint     # eslint(当前零 error，别放宽)
   - `earnings()` 返回 `(去重后的行, 代码→行)` 两样：前者是降级缓存（按行去重，双重股权只留一行），后者供权重表按代码逐行取数——只给去重后的列表会让 GOOG 那行平白空一片（映射里 GOOG 与 GOOGL 指向同一个 row 对象）。**公布日搬进权重表必须改名 `rpt`**：权重行里的 `date` 是 `metrics()` 的行情收盘日、前端 `HoldCard` 在用，同名合并会被财报日悄悄覆盖。
   - 覆盖标的 = 七巨头 + 权重表前十（`usNDX` 是指数无财报，排除）。`parse_surprise()` 按 `dateReported` 取 max 而非信上游排序（实测倒序但无契约）。单只纳斯达克失败跳该行、单只东财失败只留空那几格；纳斯达克全军覆没才沿用上次的 `earnings` 并逐行标 `stale`，没有旧值则整块隐藏卡片。
   - 改 `parse_surprise()` / `parse_income()` 跑 `tests/test_us_perf.py`（最新行选取 / 空表抛错 / 多项目取数 / 财季越月 / 项目缺失 / 财季错位六条分支，全离线）。其余源试过并弃用：腾讯无美股财务接口（`Can't load controller:UsFinanceController`）、新浪 `US_FinanceService` 返回 `Service not valid`、Yahoo `quoteSummary` 现在 401 `Invalid Crumb`、`stockanalysis.com/api/screener/*` 全 404 已废。要 GAAP 底稿再看 SEC `data.sec.gov/api/xbrl/companyconcept`（要合规 UA + 十位补零 CIK）。
+- **全市场成交额（`AStockPage` 底部那张图）**：`median_trend.py` 的 `export_turnover()` 拉同花顺 `/a-share-index/prices/historical`（与微盘股/可转债同一个接口，返回体里除 `close_price` 外还带 `turnover`（成交额，元）和 `volume`，白拿）→ 沪 `000001.SH` + 深 `399001.SZ` 相加 → `turnover_data.js`（近 5 年日频，1210 天，25KB）。页面上有区间筛选（今年以来 / 近 1、3、5 年，默认今年以来，复用 `theme.css` 里本来没人用的 `.tabs`），成交额那张图单独一个 effect，换区间只重建它。约束：
+  - **深证成指返回的是全深市成交额而不是成分股**（与深证综指 `399106` 逐位一致，也与东财 push2his 对得上），所以两个代码就够，别去凑成分股。**北交所拿不到**（`899050` 无论 `.BJ` 还是 `.SH` 都回 `Unknown thscode`），占比 <1%，图注里写明不含。
+  - **窗口超 ~5 年会静默回空而不是报错**：实测 `TURNOVER_DAYS=1826` 天回 1210 根，1830 天回 0 根；跨 10 年时它 `code=1003` 说的 "at most 10 years" 是骗人的（6 年就空了）。所以拿到空 item 必须抛错，别写出一份空数据；要更长历史只能按 5 年分段拼。
+  - **不带 `updated` 字段**（同 `us_data.js`）：节假日重跑数据一模一样，有时间戳就每次都是新字节，白刷一次 commit。数据到哪天看 `dates[-1]`。
+  - **这个接口只服务「截止到今天的 5 年内」**：窗口整段落在过去一律回空（2020 整年、2015 整年、1995 整年实测都是空），分段拼历史这条路走不通。所以页面上没有「全部」档，最长就是近 5 年。真要更长的历史只能上东财 `push2his`（`secid=1.000001`/`0.399001`，`fields2` 带 `f57` 成交额，一次给 8716 根，1990-12-19 起，实测 2015-05-28 天量 2.363 万亿），**但它限流狠**——连打五六次就 `RemoteDisconnected`，接的话得包重试 + 把老历史存进文件别每天重拉（2026-09 试过这套，为一个跟「近 5 年」重复的按钮不值，撤了）。
+  - **20 日均线不落文件，前端现算**：区间切片后仍要按完整序列算均线（不然「今年以来」档前 19 个交易日空一截），存一份反而两头对不齐；顺带省 30% 体积。
+  - 盘中跑丢掉最后那天（半天成交额画出来是一根假地量柱），同 `--update` 的「未收盘不落库」。整段包 try/except：拉不到就不写文件、页面留上次那份，不拖累中位数导出（本地没 `HITHINK_FINANCE_API_KEY` 时走的就是这条）。改这块跑 `tests/test_tencent_parse.py`（两市相加 / 空返回抛错）。
+  - 对过账：2026-01-14 峰值 3.941 万亿、2024-08-13 谷值 0.477 万亿、2026-09-01 收 2.033 万亿（= 东财的沪 9443 亿 + 深 10891 亿），与公开数据一致。
+- **两融余额（`AStockPage` 最下面那张图）**：`median_trend.py` 的 `export_margin()` 拉东财 datacenter 报表 `RPTA_RZRQ_LSHJ`（沪深两市融资融券汇总）→ `margin_data.js`（2010-03-31 起全历史，3989 天，105KB）。图是双轴：两融余额（万亿，蓝，左轴）+ 融资余额占流通市值比（%，黄，右轴），自带一排区间筛选（比成交额那张多一档「全部」，因为数据够）。约束：
+  - **同花顺没有两融**：`/margin/*`、`/rzrq/*`、`/a-share/margin*`、`/meta/*` 全 404，它只开放指数行情和全市场 dump。所以这条**只有东财一个源**，拉不到就 try/except 跳过、页面留上次那份（同成交额）。
+  - **`pageSize` 上限 800**：填 5000 既不报错也不多给，必须按 `result.pages` 翻页（当前 5 页）。少翻一页就是静默丢掉最近三年。实测 5 次请求 1.1s、**不限流**——它和限流狠的 `push2his` 不是同一个端点，别照那个的经验加节流。
+  - **占流通市值比那条线不能省**：2026-06-25 余额 3.033 万亿是历史新高，占比才 2.81%；2015-07-03 占比峰值 4.70% 时余额只有 1.91 万亿。只画余额会得出「杠杆比 2015 还疯」的反结论。反过来**融券余额不导出**（293 亿 vs 融资 2.64 万亿，画上去是条贴着 x 轴的线）。
+  - **两条轴都从 0 起**，右轴还钉了 `max ≥ 5`（2015 峰值 4.70%）：各自 `scale` 会把「余额创新高而占比没跟上」这唯一值钱的信息抹平，而万亿和 % 两个数量级撞在一起时两条线会叠成一根。
+  - **这张图恒定比同页成交额慢一天**，不是故障：交易所收盘后当晚才公布当日余额，`update.yml` 两条 cron（北京 16:30 / 18:00）都赶不上。每趟都全量重拉，缺的次日自己补齐，所以别为它单加 cron，也不做增量。
+  - 同 `turnover_data.js` **不带 `updated`**（节假日重跑数据一样，有时间戳就白刷一次 commit）。对过账：上交所官网 2026-08-31 沪市融资余额 1.3475 万亿，东财两市合计 2.6355 万亿；`RZRQYE == RZYE + RQYE` 逐位相等，3989 行零重复零空值。改这块跑 `tests/test_tencent_parse.py`（翻页翻全 / 空返回抛错）。
 - 只导出今年以来的数据（`stock/median_trend.py` 的 `main()` 末尾按 `%Y-01-01` 过滤）。
 
 ## 房价侧的坑

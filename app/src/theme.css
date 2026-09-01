@@ -296,8 +296,11 @@ table,
   gap: 12px;
   margin: 18px 0 24px;
 }
+/* 5 块的页面(A股趋势)排成 5 列, 不然第 5 块自己占一整行 */
+.tiles:has(> :nth-child(5)) { grid-template-columns: repeat(5, 1fr); }
 @media (max-width: 680px) {
-  .tiles {
+  .tiles,
+  .tiles:has(> :nth-child(5)) {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -503,12 +506,14 @@ table.dt {
 /* ========== 图表容器高度 ========== */
 .chart.main { height: 360px; }
 .chart.cum  { height: 240px; }
+.chart.amt  { height: 260px; }
 .chart.idx  { height: 500px; }
 .chart.kline { height: 380px; }
 .chart.intraday { height: 300px; }
 @media (max-width: 680px) {
   .chart.main { height: 280px; }
   .chart.cum  { height: 200px; }
+  .chart.amt  { height: 220px; }
   .chart.idx  { height: 460px; }
   .chart.kline { height: 300px; }
   .chart.intraday { height: 260px; }
@@ -551,24 +556,29 @@ table.dt {
   }
 }
 
-/* ========== pane 切换 tab(纳指QDII 页) ========== */
-.tabs {
-  display: flex;
-  gap: 6px;
-  margin: 18px 0 -4px;
-}
-.tabs button {
+/* ========== 区间筛选下拉(A股趋势页成交额 / 两融那两张图) ========== */
+/* 区间下拉: 绝对定位到卡片右上角。标题和副标题是同一段行内文本, 把 h2 改成 flex
+   会把它俩拆成两个 flex item 断掉行内流, 所以宁可给 h2 留出右边距让开这个框 */
+.card:has(.pick) { position: relative; }
+/* 只有宽屏才给下拉框让位: 窄屏副标题另起一行走在框下方, 留边距只会让它提前折行。
+   写成 min-width 而不是在 680 媒体查询里覆盖 —— 那段 CSS 在本块之前, 同特异性会输 */
+@media (min-width: 681px) { .card:has(.pick) h2 { padding-right: 96px; } }
+/* 窄屏副标题是 block, 会顶到绝对定位的下拉框底下 -> 把它压到框下面去 */
+.card:has(.pick) h2 span.dot { margin-top: 14px; }
+.pick {
+  position: absolute;
+  top: 12px;
+  right: 12px;
   font: inherit;
-  font-size: 13px;
-  color: var(--muted);
+  font-size: 12px;
+  color: var(--ink2);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 7px 14px;
+  border-radius: 9px;
+  padding: 5px 8px;
   cursor: pointer;
 }
-.tabs button:hover { color: var(--ink2); }
-.tabs button.on { color: var(--ink); background: var(--grid); border-color: var(--baseline); }
+.pick:hover { border-color: var(--baseline); }
 
 /* ========== hero 数字(NQ 隔夜) ========== */
 .hero {

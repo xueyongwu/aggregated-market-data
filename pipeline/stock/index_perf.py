@@ -1,4 +1,4 @@
-"""宽基/特色指数今年以来涨跌幅 -> app/src/data/idx_data.js (AStockPage 排名条形图)。
+"""宽基/特色指数今年以来涨跌幅 -> app/src/data/idx_data.js (IndexPage 排名条形图)。
 
 数据源:
   tx      腾讯 web.ifzq.gtimg.cn 日线接口      沪深/北证/港股指数, 一次请求给全年日线
