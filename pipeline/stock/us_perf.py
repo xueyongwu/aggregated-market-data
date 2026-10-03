@@ -25,6 +25,15 @@ import requests
 from pipeline.paths import WEB_DATA
 
 
+# 完整浏览器 UA + Accept: stockanalysis 套了 Cloudflare, 裸 "Mozilla/5.0" 自 2026-09-12 起
+# 一律 403(cf-mitigated: challenge), 带全这两个头实测 200。纳斯达克/腾讯/东财照样认。
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/128.0 Safari/537.36",
+    "Accept": "text/html,application/json;q=0.9,*/*;q=0.8",
+}
+
+
 def fetch(url: str, tries: int = 3, **kw) -> requests.Response:
     """带重试的 GET。
 
@@ -34,7 +43,7 @@ def fetch(url: str, tries: int = 3, **kw) -> requests.Response:
     """
     for i in range(tries):
         try:
-            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, **kw)
+            r = requests.get(url, headers=HEADERS, **kw)
             r.raise_for_status()
             return r
         except Exception as e:
@@ -62,6 +71,7 @@ CN = {  # 权重股中文名, 缺的直接显示英文原名(成分股会换, �
     "MU": "美光科技", "NFLX": "奈飞", "COST": "好市多", "CSCO": "思科", "INTC": "英特尔",
     "WMT": "沃尔玛", "PLTR": "Palantir", "AMAT": "应用材料", "LRCX": "泛林集团",
     "TXN": "德州仪器", "KLAC": "科天半导体", "PANW": "派拓网络", "LIN": "林德", "AMGN": "安进",
+    "SPCX": "SpaceX",
 }
 
 
@@ -269,27 +279,36 @@ def pct(s: pd.Series, cut: pd.Timestamp) -> float:
     return round((s.iloc[-1] / base.iloc[-1] - 1) * 100, 2)
 
 
-def perf(s: pd.Series) -> dict:
+def perf(s: pd.Series, strict: bool = True) -> dict:
     """收盘序列 -> 当日/本周/本月/今年以来涨跌幅 + 最新收盘。
 
     基准都取自「最新那根 bar 的日期」而非 now(), 理由见模块头。
+    strict=False 给权重表用: 年内新上市的成分股(2026-09 的 SPCX 只有 78 根)没有上年末
+    基准, 该列留 None(前端显示 —), 不该连当日/本周一起空掉。七巨头那张表仍按缺基准抛错。
     """
     d = s.index[-1]
-    return {
+    cuts = {
         # cut = 最新那根本身 -> 基准是前一根收盘, 即当日涨跌幅
-        "day": pct(s, d),
+        "day": d,
         # cut = 本周一 -> 基准落到上周最后一个交易日收盘(通常上周五, 假期则更早)
-        "wtd": pct(s, d - pd.Timedelta(days=d.weekday())),
-        "mtd": pct(s, d.replace(day=1)),
-        "ytd": pct(s, pd.Timestamp(d.year, 1, 1)),
-        "close": round(float(s.iloc[-1]), 2),
-        "date": d.strftime("%Y-%m-%d"),
+        "wtd": d - pd.Timedelta(days=d.weekday()),
+        "mtd": d.replace(day=1),
+        "ytd": pd.Timestamp(d.year, 1, 1),
     }
+    out = {}
+    for k, cut in cuts.items():
+        try:
+            out[k] = pct(s, cut)
+        except RuntimeError:
+            if strict:
+                raise
+            out[k] = None
+    return out | {"close": round(float(s.iloc[-1]), 2), "date": d.strftime("%Y-%m-%d")}
 
 
-def metrics(symbol: str) -> dict:
+def metrics(symbol: str, strict: bool = True) -> dict:
     """腾讯代码 -> 本周/本月/今年以来涨跌幅 + 最新收盘。"""
-    return perf(closes(symbol))
+    return perf(closes(symbol), strict)
 
 
 def last(out: Path, key: str):
@@ -314,11 +333,6 @@ def main():
 
     try:  # 权重是另一个源, 挂了不该把行情一起拖掉: 沿用上次的并标 stale
         hold = holdings()
-        for h in hold["items"]:  # 纳指成分必在纳斯达克上市, 腾讯代码统一 .OQ 后缀
-            try:
-                h.update(metrics(f"us{h['code']}.OQ"))
-            except Exception as e:  # 单只拿不到不该让整张权重表回退成上周的
-                print(f"  {h['code']} 行情拉取失败: {e}(该行涨跌幅留空)", flush=True)
         print(f"权重股 {len(hold['items'])} 只 / 行业 {len(hold['sectors'])} 个"
               f" (截至 {hold['asof']})", flush=True)
     except Exception as e:
@@ -326,6 +340,15 @@ def main():
         print(f"权重拉取失败({e}), " + ("沿用上次" if hold else "本次不带权重表"), flush=True)
         if hold:
             hold["stale"] = True
+    # 行情不论权重新旧都重拉: stale 只该冻住权重那一列。曾经放在 try 里, 权重源 403 的
+    # 三周里涨跌幅也跟着停在 2026-09-10, 而腾讯一天都没挂过。
+    for h in (hold or {}).get("items", []):  # 纳指成分必在纳斯达克上市, 腾讯代码统一 .OQ 后缀
+        for k in ("day", "wtd", "mtd", "ytd", "close", "date"):  # 拉不到时留空, 别摆上次的旧值
+            h.pop(k, None)
+        try:
+            h.update(metrics(f"us{h['code']}.OQ", strict=False))
+        except Exception as e:  # 单只拿不到不该让整张权重表回退成上周的
+            print(f"  {h['code']} 行情拉取失败: {e}(该行涨跌幅留空)", flush=True)
 
     # 财报覆盖页面上已有的两张表(七巨头 + 权重股), 去重保序; 指数没有财报, 靠 .OQ 后缀排除
     tickers = [s[2:].split(".")[0] for _, s in SYMBOLS if "." in s]

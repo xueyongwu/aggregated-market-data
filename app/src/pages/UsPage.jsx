@@ -89,7 +89,7 @@ function HoldCard({ H }) {
         <span>
           {/* 两列口径不同步: 权重来自 QQQ 持仓(上游周级更新), 行情来自腾讯日线(T-1 收盘) */}
           · 权重为 QQQ 持仓占比，截至 {H.asof}
-          {H.stale && "（数据源失败，沿用上次）"}
+          {H.stale && "（权重源失败，沿用上次）"}
           ；行情截至 {H.items[0].date || U.items[0].date /* 旧格式没带 date, 退回行情表的 */}
         </span>
       </h2>

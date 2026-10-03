@@ -1,7 +1,7 @@
 """us_perf.pct() 基准选取自检(离线, 合成日线)。跑: python -m tests.test_us_perf"""
 import pandas as pd
 
-from pipeline.stock.us_perf import parse_income, parse_surprise, pct, tech_split
+from pipeline.stock.us_perf import parse_income, parse_surprise, pct, perf, tech_split
 
 
 def series(pairs):
@@ -44,6 +44,18 @@ def test_no_base_raises():
     except RuntimeError:
         return
     raise AssertionError("缺基准时应抛 RuntimeError")
+
+
+def test_perf_new_listing():
+    # 年内新上市(权重表 strict=False): 缺上年末基准只空今年以来那列, 当日/本周/本月照算
+    s = series([("2026-07-15", 50.0), ("2026-09-30", 100.0), ("2026-10-02", 110.0)])
+    p = perf(s, strict=False)
+    assert p["ytd"] is None and p["day"] == 10.0 and p["mtd"] == 10.0 and p["date"] == "2026-10-02"
+    try:
+        perf(s)
+    except RuntimeError:
+        return
+    raise AssertionError("strict 默认应对缺基准抛错")
 
 
 def rows(*pairs):
@@ -138,6 +150,7 @@ def test_income_quarter_mismatch():
 
 if __name__ == "__main__":
     for f in (test_week_base, test_month_base, test_year_base, test_prev_close, test_no_base_raises,
+              test_perf_new_listing,
               test_tech_split_residual, test_tech_split_no_negative_rest,
               test_surprise_picks_latest, test_surprise_empty_raises,
               test_income_ok, test_income_quarter_spills_next_month,
