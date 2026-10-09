@@ -26,6 +26,7 @@
   --down: #0e9c62; /* 跌·绿 */
   --flat: #c4bdb0;
   --blue: #2f74d0; /* 累计线 / 权重条 */
+  --orange: #e07214; /* 定投明细里的「定投」 */
   --avg: #b8862c; /* 分时均价线 */
   --series-1: #2c5f7c; /* 房价: 新建商品住宅 */
   --series-2: #c07a35; /* 房价: 二手住宅 */
@@ -63,6 +64,7 @@
   --down: #16b070;
   --flat: #6b665c;
   --blue: #3987e5;
+  --orange: #f08c35;
   --avg: #d9a441;
   --series-1: #4f97c4;
   --series-2: #d9a441;
@@ -418,6 +420,8 @@ code {
 .wrap.dca .tile .v { font-size: 21px; }
 .wrap.dca .card { padding: 12px 10px 6px; margin-bottom: 12px; }
 .wrap.dca .dt th, .wrap.dca .dt td { padding: 5px 8px; }
+/* 明细里的周定投行: 与红买绿卖区分开 */
+.wrap.dca .dt td.dcaBuy { color: var(--orange); }
 
 /* ========== 表格(纳指QDII / 美股) ========== */
 .tWrap {

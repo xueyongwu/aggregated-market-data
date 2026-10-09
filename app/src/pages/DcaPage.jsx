@@ -37,6 +37,7 @@ function swing(trades) {
     return +d;
   };
   const weeks = new Set();
+  const dcaAt = new Set(); // 认定为周定投的成交时间, 明细表按它打标
   let dca = 0, dcaN = 0, add = 0, addN = 0, cut = 0, cutN = 0;
   for (const [t, qty, , , tag] of trades) {
     if (t < SINCE) continue;
@@ -46,6 +47,7 @@ function swing(trades) {
       cutN++;
     } else if (!weeks.has(w) || tag === "定投") {
       weeks.add(w);
+      dcaAt.add(t);
       dca += qty;
       dcaN++;
     } else {
@@ -53,7 +55,7 @@ function swing(trades) {
       addN++;
     }
   }
-  return { dca, dcaN, add, addN, cut, cutN, left: add - cut };
+  return { dca, dcaN, add, addN, cut, cutN, left: add - cut, dcaAt };
 }
 
 // 现价虚线：轮询每变一次价就重画整张图太浪费，单拎出来走 setOption 增量更新。
@@ -267,7 +269,11 @@ export default function DcaPage() {
                     {r.t.slice(5, 16)}
                     <span className="cd">{week(r.t)}</span>
                   </td>
-                  <td className={sign(r.qty)}>{r.qty > 0 ? "买入" : "卖出"}</td>
+                  {S.dcaAt.has(r.t) ? (
+                    <td className="dcaBuy">定投</td>
+                  ) : (
+                    <td className={sign(r.qty)}>{r.qty > 0 ? "买入" : "卖出"}</td>
+                  )}
                   <td>{r.price.toFixed(3)}</td>
                   <td>{r.qty.toLocaleString()}</td>
                   <td className="mHide">{money(r.amount)}</td>
