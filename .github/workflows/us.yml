@@ -29,13 +29,17 @@ jobs:
           python-version: "3.12"
       - run: pip install pandas requests
       - run: python -m pipeline.stock.us_perf
+      - run: python -m pipeline.stock.ndx_pe
+        # 纳指100 市盈率百分位(定投页估值档位)。worldperatio 按美股收盘更新, 跟这条同节奏;
+        # 网页抠数, 改版就挂 —— 不阻断美股那份, 页面留上次的(自带 date)
+        continue-on-error: true
       - name: commit & push
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add app/src/data/us_data.js
+          git add app/src/data/us_data.js app/src/data/pe_data.js
           git diff --cached --quiet && exit 0
           git commit -m "chore: us market update $(date -u +%F)"
           git pull --rebase

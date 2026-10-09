@@ -445,6 +445,79 @@ code {
 }
 .wrap.dca .tile.lack .k,
 .wrap.dca .tile.lack .v { color: var(--up); }
+/* 页底的策略卡: 宽屏 3 列(首行 普通定投 / 低点加仓 / 新高减仓, 次行估值定额通栏), 窄屏单列 */
+.planGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 10px 2px 8px;
+}
+.planItem {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.planItem.wide { grid-column: 1 / -1; }
+/* 只管小标题(直接子元素): 写成 .planItem b 会把段落里的加粗数字也变成块, 一句话被拆成好几行 */
+.planItem > b {
+  display: block;
+  color: var(--orange);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.planItem p {
+  margin: 0;
+  color: var(--ink2);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+.ladder {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+}
+.ladder li {
+  border-radius: 6px;
+  padding: 5px 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+/* 当前估值所在档: 橙色描边。用 inset shadow 不用 border, 不然这一格比邻居多出 2px 撑歪整排 */
+.ladder li.cur {
+  box-shadow: inset 0 0 0 2px var(--orange);
+  color: var(--orange);
+}
+/* 标题后面的小注(估值定额后的当前市盈率/百分位) */
+.planItem > b span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  margin-left: 8px;
+}
+.ladder li small {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 400;
+  margin-left: 1px;
+}
+.ladder li span {
+  display: block;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 400;
+}
+@media (max-width: 860px) {
+  .planGrid { grid-template-columns: 1fr; }
+  .planItem.wide { grid-column: auto; }
+  .ladder { grid-template-columns: repeat(5, 1fr); }
+}
 
 /* ========== 表格(纳指QDII / 美股) ========== */
 .tWrap {

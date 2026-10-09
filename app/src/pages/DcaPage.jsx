@@ -10,6 +10,7 @@ import { useTheme, vars } from "../theme";
 import { aOpen, jsonp, poll } from "../jsonp";
 import { COLORS, MOBILE, fmtP, tip, xDate, yPrice } from "../chartBase";
 import { DCA } from "../data/dca_data";
+import { NDX_PE } from "../data/pe_data";
 
 const GL = MOBILE ? 42 : 52;
 const sign = (v) => (v >= 0 ? "pos" : "neg");
@@ -81,6 +82,17 @@ function swing(trades) {
   }
   return { dca, dcaN, add, addN, cut, left: add - cut, dcaAt, missed, owed };
 }
+
+// 估值定额: 近 20 年估值百分位每降 10%，每次定投追加 500 元(1000 元起步)。
+// 手抄自用户的策略笔记, 只做展示, 不参与上面任何计算。
+// 每档左闭右开: 「80~70%」= [70%, 80%)，两头是 ≥90% 和 <10%。
+const LADDER = Array.from({ length: 10 }, (_, i) => {
+  const lo = 90 - i * 10;
+  return [i === 0 ? "≥90%" : i === 9 ? "<10%" : `${lo + 10}~${lo}%`, 1000 + i * 500];
+});
+// 当前落在哪一档(pe_data.js 由 pipeline/stock/ndx_pe.py 每个美股交易日更新)。
+// 正好 70% 落在「80~70%」, 不是更便宜那档; 100% 也归 ≥90%。
+const TIER = Math.max(0, 9 - Math.floor(NDX_PE.pct / 10));
 
 // 现价虚线：轮询每变一次价就重画整张图太浪费，单拎出来走 setOption 增量更新。
 // 标签贴左端(y 轴那侧)画在线上方: 默认的 end 落在 grid 外, 会被卡片右边缘裁掉半截
@@ -325,6 +337,49 @@ export default function DcaPage() {
         </div>
       </div>
 
+      <div className="card plan">
+        <h2>
+          投资策略：定投+ <span className="dot">普通定投 + 估值定额 + 低点加仓 + 新高减仓</span>
+        </h2>
+        <div className="planGrid">
+          <div className="planItem">
+            <b>普通定投</b>
+            <p>周定投，每周至少一笔</p>
+          </div>
+          <div className="planItem">
+            <b>低点加仓</b>
+            <p>累跌 2% 以上</p>
+          </div>
+          <div className="planItem">
+            <b>新高减仓</b>
+            <p>仓位：低点加仓的仓位</p>
+            <p>时机：指数创新高时</p>
+          </div>
+          <div className="planItem wide">
+            <b>
+              估值定额
+              <span>
+                {NDX_PE.date.slice(5)} 市盈率 {NDX_PE.pe.toFixed(2)}，估值百分位 {NDX_PE.pct.toFixed(1)}%
+              </span>
+            </b>
+            <p>按近 20 年估值百分位定每次金额：1000 元起步，估值每降 10% 追加 500 元</p>
+            <ol className="ladder">
+              {LADDER.map(([k, v], i) => (
+                // 估值越低底色越深: 越便宜投得越多
+                <li
+                  key={k}
+                  className={i === TIER ? "cur" : undefined}
+                  style={{ background: `color-mix(in srgb, var(--orange) ${4 + i * 3}%, var(--surface))` }}
+                >
+                  <span>{k}</span>
+                  {v}
+                  <small>元</small>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

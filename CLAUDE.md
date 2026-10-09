@@ -26,6 +26,7 @@ stock.index_perf      腾讯/新浪/中证/同花顺 ─────────
 stock.bond_rate       中国货币网 ────────────────────────────────→ bond_data.js   → BondPage
 stock.nq_overnight    新浪外盘 NQ  → cache/nq_min.parquet ───────→ nq_data.js     → QdiiPage
 stock.us_perf         腾讯美股/纳斯达克/东财 ────────────────────→ us_data.js     → UsPage
+stock.ndx_pe          worldperatio 纳指100 市盈率 ───────────────→ pe_data.js     → DcaPage(估值档位)
 housing.scrape_housing_data 统计局 → data/70城房价.json + data/raw/ ┐
 housing.generate_js_data ────────────────────────────────────────┴→ housingData.generated.js → HousingPage
 ```
@@ -45,6 +46,7 @@ python -m pipeline.stock.index_perf               # 15 个宽基/特色/港股�
 python -m pipeline.stock.bond_rate                # 10Y/30Y 国债活跃券收益率
 python -m pipeline.stock.nq_overnight             # 纳指期货隔夜涨跌 + 分时
 python -m pipeline.stock.us_perf                  # 纳指100+七巨头+权重股+财报
+python -m pipeline.stock.ndx_pe                   # 纳指100 市盈率近 20 年百分位(定投页估值档位)
 
 # 房价
 python -m pipeline.housing.scrape_housing_data --year 2026   # 抓某年（默认 2026）
@@ -58,6 +60,7 @@ python -m tests.test_tencent_parse       # 快照解析 + baostock 降级
 python -m tests.test_nq_overnight        # NQ 隔夜窗口逻辑(合成 bar)
 python -m tests.test_bond_rate           # 活跃券选取(合成成交行)
 python -m tests.test_us_perf             # 月/年基准选取 + 财报解析(合成日线)
+python -m tests.test_ndx_pe              # 纳指PE 页面解析 + 20 年窗口百分位(合成 HTML)
 python -m tests.test_parse               # 房价 parser 回归
 
 # 前端
@@ -122,6 +125,12 @@ cd app && pnpm lint     # eslint(当前零 error，别放宽)
 市值 97,768.00、总盈亏 +10,429.16、+11.941%、当日 +1,064.80。现价走腾讯快照（`[3]`现价 `[4]`昨收
 `[32]`涨跌幅%，`jsonp` 注入绕 CORS），A 股开市时段 3s 轮询，拉不到退回最后一笔成交价、当日盈亏留空。
 标的认定靠「现价 + 涨跌幅」对快照，不靠简称——同花顺的「纳100ETF」= 易方达 `sz159696`。
+页底的「定投+」策略卡是手抄的用户笔记，只做展示；估值定额那排 10 档按 `pe_data.js` 高亮当前档：
+`stock/ndx_pe.py` 从 worldperatio 网页里抠当前市盈率（正文那句 `calculated on`）和月度历史
+（Highcharts 的 `detailPE_data`，1990 起，`Date.UTC` 月份从 0 起），百分位 = 近 20 年月度点里低于当前值的
+占比（不含当月点）。**免费源只有它够 20 年**：蛋卷 `index_eva/pe_history/NDX` 每周一点但 2016 年才起，
+akshare 的韭圈儿接口已删，理杏仁开放平台有 `us/index/fundamental`（实测 401 而非 404）但要付费 token。
+历史是月度不是日度，对周定投换档无碍。挂在 `us.yml`（美股收盘后）`continue-on-error`，页面改版即抛错不写。
 
 **图表零件在 `app/src/chartBase.js`，表格零件在 `app/src/table.jsx`**（`useSort` / `Pct`）。
 拆成多页后这些被三四个页面共用，别再各页复制一份。
