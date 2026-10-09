@@ -15,39 +15,50 @@ const GL = MOBILE ? 42 : 52;
 const sign = (v) => (v >= 0 ? "pos" : "neg");
 const money = (v) => v.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 // Safari 不认 "YYYY-MM-DD HH:MM:SS", 换成斜杠再解析(同 QdiiPage)
-const week = (t) => "周" + "日一二三四五六"[new Date(t.slice(0, 10).replace(/-/g, "/")).getDay()];
+const day = (t) => new Date(t.slice(0, 10).replace(/-/g, "/"));
+const week = (t) => "周" + "日一二三四五六"[day(t).getDay()];
 const signed = (v) => (v >= 0 ? "+" : "−") + money(Math.abs(v));
 // 持有时长: 首笔成交至今的自然日。没做「清仓后重新计时」—— 从没清过仓, 真清了这口径本身就得重定义。
-const held = (t) => Math.floor((Date.now() - new Date(t.slice(0, 10).replace(/-/g, "/"))) / 864e5);
+const held = (t) => Math.floor((Date.now() - day(t)) / 864e5);
 
 // 波段统计的起点(含当日)。**必须是周一** —— 下面按自然周认定「每周第一笔买入 = 周定投」，
 // 从周中切会把那周已经打过的定投当成加仓。2026-06-29 之前是建仓期(6 月那波大额进出)，
 // 混进来看不出加仓/减仓的成色。
 const SINCE = "2026-06-29";
 
+const WEEK = 7 * 864e5;
+const monday = (t) => {
+  const d = day(t);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return +d;
+};
+const ymd = (ms) => {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 /**
- * 自 SINCE 起：周定投、低点加仓(同周其余买入)、新高减仓(卖出)、加仓剩余。
+ * 自 SINCE 起：周定投、定投缺失、低点加仓(同周其余买入)、加仓剩余(加仓 − 卖出)。
  * 周定投 = 每周第一笔买入(恒定不变) + 行尾标了 "定投" 的买入(用户特别指定的额外定投，
  * 一周可以有多笔)。其余买入算加仓。
+ *
+ * 缺口：规则是每周至少一笔定投。整周没有买入 = 缺一周(本周还没过完不算)；之后某周定投
+ * 多于一笔，多出来的一笔补掉一次缺口。只往回补不预存 —— 没欠的时候多投
+ * 不攒成额度，否则「先连投两笔、下周不投」也成了合规。
+ * 没认交易日历：整周休市(春节那周)会被记成缺口，到时候在 CLOSED 里加那周的周一。
  */
+const CLOSED = new Set([]);
+
 function swing(trades) {
-  const monday = (t) => {
-    const d = new Date(t.slice(0, 10).replace(/-/g, "/"));
-    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    return +d;
-  };
-  const weeks = new Set();
-  const dcaAt = new Set(); // 认定为周定投的成交时间, 明细表按它打标
-  let dca = 0, dcaN = 0, add = 0, addN = 0, cut = 0, cutN = 0;
+  const weeks = new Map(); // 周一 → 当周定投的成交时间
+  let dca = 0, dcaN = 0, add = 0, addN = 0, cut = 0;
   for (const [t, qty, , , tag] of trades) {
     if (t < SINCE) continue;
     const w = monday(t);
     if (qty < 0) {
       cut += -qty;
-      cutN++;
     } else if (!weeks.has(w) || tag === "定投") {
-      weeks.add(w);
-      dcaAt.add(t);
+      weeks.set(w, [...(weeks.get(w) || []), t]);
       dca += qty;
       dcaN++;
     } else {
@@ -55,7 +66,20 @@ function swing(trades) {
       addN++;
     }
   }
-  return { dca, dcaN, add, addN, cut, cutN, left: add - cut, dcaAt };
+
+  const dcaAt = new Set([...weeks.values()].flat()); // 明细表按它打「定投」
+  let missed = 0, owed = 0; // 累计缺的周数 / 其中还没补上的
+  const thisWeek = monday(ymd(Date.now()));
+  for (let w = monday(SINCE); w <= thisWeek; w += WEEK) {
+    if (CLOSED.has(ymd(w))) continue;
+    const ts = weeks.get(w) || [];
+    if (!ts.length && w < thisWeek) {
+      missed++;
+      owed++;
+    }
+    owed -= Math.min(owed, Math.max(ts.length - 1, 0)); // 多出来的定投补之前的缺口
+  }
+  return { dca, dcaN, add, addN, cut, left: add - cut, dcaAt, missed, owed };
 }
 
 // 现价虚线：轮询每变一次价就重画整张图太浪费，单拎出来走 setOption 增量更新。
@@ -219,15 +243,17 @@ export default function DcaPage() {
           <span className="v">{S.dca.toLocaleString()}<small>股</small></span>
           <span className="u">{S.dcaN} 笔 · 每周第一笔 + 指定</span>
         </div>
+        <div className="tile lack">
+          <span className="k">定投缺失</span>
+          <span className="v">{S.owed}<small>笔</small></span>
+          <span className="u">
+            累计缺 {S.missed} 笔 · 已补 {S.missed - S.owed}
+          </span>
+        </div>
         <div className="tile">
           <span className="k">低点加仓</span>
           <span className="v">{S.add.toLocaleString()}<small>股</small></span>
           <span className="u">{S.addN} 笔 · 同周其余买入</span>
-        </div>
-        <div className="tile">
-          <span className="k">新高减仓</span>
-          <span className="v">{S.cut.toLocaleString()}<small>股</small></span>
-          <span className="u">{S.cutN} 笔</span>
         </div>
         <div className="tile derived">
           <span className="k">低点加仓剩余</span>
