@@ -25,7 +25,11 @@ const held = (t) => Math.floor((Date.now() - new Date(t.slice(0, 10).replace(/-/
 // 混进来看不出加仓/减仓的成色。
 const SINCE = "2026-06-29";
 
-/** 自 SINCE 起：周定投(每周第一笔买入)、低点加仓(同周其余买入)、新高减仓(卖出)、加仓剩余。 */
+/**
+ * 自 SINCE 起：周定投、低点加仓(同周其余买入)、新高减仓(卖出)、加仓剩余。
+ * 周定投 = 每周第一笔买入(恒定不变) + 行尾标了 "定投" 的买入(用户特别指定的额外定投，
+ * 一周可以有多笔)。其余买入算加仓。
+ */
 function swing(trades) {
   const monday = (t) => {
     const d = new Date(t.slice(0, 10).replace(/-/g, "/"));
@@ -34,18 +38,19 @@ function swing(trades) {
   };
   const weeks = new Set();
   let dca = 0, dcaN = 0, add = 0, addN = 0, cut = 0, cutN = 0;
-  for (const [t, qty] of trades) {
+  for (const [t, qty, , , tag] of trades) {
     if (t < SINCE) continue;
+    const w = monday(t);
     if (qty < 0) {
       cut += -qty;
       cutN++;
-    } else if (weeks.has(monday(t))) {
-      add += qty;
-      addN++;
-    } else {
-      weeks.add(monday(t)); // 每周第一笔买入 = 周定投
+    } else if (!weeks.has(w) || tag === "定投") {
+      weeks.add(w);
       dca += qty;
       dcaN++;
+    } else {
+      add += qty;
+      addN++;
     }
   }
   return { dca, dcaN, add, addN, cut, cutN, left: add - cut };
@@ -210,12 +215,12 @@ export default function DcaPage() {
         <div className="tile">
           <span className="k">周定投</span>
           <span className="v">{S.dca.toLocaleString()}<small>股</small></span>
-          <span className="u">{S.dcaN} 笔 · 每周第一笔</span>
+          <span className="u">{S.dcaN} 笔 · 每周第一笔 + 指定</span>
         </div>
         <div className="tile">
           <span className="k">低点加仓</span>
           <span className="v">{S.add.toLocaleString()}<small>股</small></span>
-          <span className="u">{S.addN} 笔 · 每周第二笔起</span>
+          <span className="u">{S.addN} 笔 · 同周其余买入</span>
         </div>
         <div className="tile">
           <span className="k">新高减仓</span>
