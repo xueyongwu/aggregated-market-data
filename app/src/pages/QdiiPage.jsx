@@ -1,16 +1,17 @@
-// 纳指 · QDII：纳指期货隔夜卡片（hero + 分时）+ 12 只场内 QDII 溢价对照（末尾两行是
-// QQQ/QQQM 两只美股 ETF 作对照）。
+// 纳指 · QDII：纳指期货隔夜卡片（hero + 分时）+ 12 只场内 QDII 溢价对照 + 易方达那只的
+// 每日溢价率走势 + QQQ/QQQM 两只美股 ETF 作对照。
 //
 // 这一页几乎全是命令式的：两个数据源都没有 CORS 头，只能 <script> 注入，回调里直接改
 // 模块级的 NQ_OVERNIGHT 再重画图。硬搬进 React state 得把每根 bar 都变成不可变更新，
 // 8s 一轮的轮询下毫无收益 —— 图表本来就是 setOption 增量合并的。
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { echarts } from "../echarts";
 import { useTheme, vars } from "../theme";
 import { aOpen, jsonp, poll, usOpen } from "../jsonp";
-import { COLORS, MOBILE, clampTip, fmtP, tip, yPrice } from "../chartBase";
+import { COLORS, MOBILE, clampTip, fmtP, since, tip, xDate, yPct, yPrice } from "../chartBase";
 import { Pct, useSort } from "../table";
 import { NQ_OVERNIGHT as NQ } from "../data/nq_data";
+import { QDII_PREMIUM as QP } from "../data/qdii_premium_data";
 
 const GL = MOBILE ? 46 : 56; // 图表左边距, 窄屏收紧
 
@@ -520,6 +521,82 @@ function CnTable() {
   );
 }
 
+// ── 易方达纳指(159696) 每日溢价率走势 ─────────────────────────────────────
+// 数据是 qdii_premium.py 增量攒的收盘价 + 单位净值, 溢价率在这里现算(文件不存冗余列)。
+// 只画这一只: 它是定投标的(DcaPage), 上表也高亮的是它。不轮询 —— 净值 T+1 才出, 盘中没新点。
+// 2023-08-25 上市, 「近 3 年」只比「全部」少开头一个多月; 两档都留着, 前者跟着日子往后滑。
+const P_RANGES = [["全部", "all"], ["今年以来", "ytd"], ["近 1 年", "1"], ["近 2 年", "2"], ["近 3 年", "3"]];
+const PREM = QP.dates.map((_, i) => +((QP.close[i] / QP.nav[i] - 1) * 100).toFixed(2));
+
+function PremCard({ theme }) {
+  const box = useRef(null);
+  const [range, setRange] = useState("1"); // 默认近 1 年
+  const S = useMemo(() => {
+    const i = since(QP.dates, range);
+    return { dates: QP.dates.slice(i), prem: PREM.slice(i), close: QP.close.slice(i), nav: QP.nav.slice(i) };
+  }, [range]);
+
+  useEffect(() => {
+    const C = vars(...COLORS);
+    const m = echarts.init(box.current, null, { renderer: "canvas" });
+    m.setOption({
+      grid: { left: GL, right: MOBILE ? 16 : 20, top: 20, bottom: 28 },
+      tooltip: {
+        ...tip(C),
+        formatter: (p) => {
+          const i = p[0].dataIndex;
+          return `${S.dates[i]}<br>溢价率 <b>${fmtP(S.prem[i])}</b>` +
+            `<br>收盘 ${S.close[i].toFixed(3)} · 净值 ${S.nav[i].toFixed(4)}`;
+        },
+      },
+      xAxis: { ...xDate(C), data: S.dates, axisLabel: { ...xDate(C).axisLabel, formatter: (d) => d.slice(0, 7) } },
+      yAxis: { ...yPct(C), axisPointer: { label: { formatter: (o) => fmtP(o.value) } } },
+      dataZoom: [{ type: "inside" }],
+      series: [
+        {
+          name: "溢价率",
+          type: "line",
+          showSymbol: false,
+          data: S.prem,
+          lineStyle: { width: 1.6, color: C.blue },
+          markLine: {
+            silent: true,
+            symbol: "none",
+            lineStyle: { color: C.muted, type: "dashed", width: 1 },
+            data: [{ yAxis: 0 }],
+            label: { show: false },
+          },
+        },
+      ],
+    });
+    const onResize = () => m.resize();
+    addEventListener("resize", onResize);
+    return () => {
+      removeEventListener("resize", onResize);
+      m.dispose();
+    };
+  }, [S, theme]);
+
+  const n = PREM.length - 1;
+  return (
+    <div className="card">
+      <h2>
+        易方达纳指 溢价率走势 <span className="dot">
+          最新 {QP.dates[n]} <b className={"premNow " + (PREM[n] >= 0 ? "pos" : "neg")}>{fmtP(PREM[n])}</b>
+        </span>
+      </h2>
+      <select className="pick" value={range} onChange={(e) => setRange(e.target.value)}>
+        {P_RANGES.map(([label, r]) => <option key={r} value={r}>{label}</option>)}
+      </select>
+      <div ref={box} className="chart amt" />
+      <p className="note">
+        溢价率 = 收盘价 ÷ 当日单位净值 − 1（ 净值 T+1 公布，曲线比行情晚一天。
+        A 股 15:00 收盘而净值按美股当晚收盘算，美股当晚大涨大跌会出现假尖刺，如 2025-04-09 ）
+      </p>
+    </div>
+  );
+}
+
 // QQQ/QQQM 美股ETF, 上表的参照。整张表都是美元, 所以不逐格加 $, 单位写在标题里。
 // 与上表逐列对不上的地方: 涨跌幅是上一场美股(北京时间隔夜), 上表是当天 A股 —— 同一段行情,
 // 但不是同一个时刻; 收益列的差额是「溢价率变动 + USD/CNY 变动 + 跟踪误差」三样混在一起。
@@ -579,6 +656,7 @@ export default function QdiiPage() {
     <div className="wrap">
       <NqCard theme={theme} />
       <CnTable />
+      <PremCard theme={theme} />
       <UsTable />
       {/* 页尾一句话: 两张表差额是哪几样东西凑出来的。具体数就在表里, 不展开也不写死数值 */}
       <p className="note">

@@ -40,10 +40,12 @@ def fetch(url: str, tries: int = 3, **kw) -> requests.Response:
     本脚本单独跑在 us.yml 上, 没有 daily-update 那种「18:00 再跑一次」的免费兜底,
     一次瞬时抖动就是页面停一整个工作日, 所以宁可多等 15 秒。
     只重试 HTTP 层: 解析失败(代码不存在、页面改版)重试多少次都一样。
+    额外的 headers(比如 Referer)叠在 HEADERS 上, 不替换整套 UA。
     """
+    kw["headers"] = {**HEADERS, **kw.get("headers", {})}
     for i in range(tries):
         try:
-            r = requests.get(url, headers=HEADERS, **kw)
+            r = requests.get(url, **kw)
             r.raise_for_status()
             return r
         except Exception as e:

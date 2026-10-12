@@ -27,6 +27,7 @@ stock.bond_rate       中国货币网 ──────────────
 stock.nq_overnight    新浪外盘 NQ  → cache/nq_min.parquet ───────→ nq_data.js     → QdiiPage
 stock.us_perf         腾讯美股/纳斯达克/东财 ────────────────────→ us_data.js     → UsPage
 stock.ndx_pe          worldperatio 纳指100 市盈率 ───────────────→ pe_data.js     → DcaPage(估值档位)
+stock.qdii_premium    东财净值 + 腾讯日线(增量, 历史存在输出里) ──→ qdii_premium_data.js → QdiiPage(溢价走势)
 housing.scrape_housing_data 统计局 → data/70城房价.json + data/raw/ ┐
 housing.generate_js_data ────────────────────────────────────────┴→ housingData.generated.js → HousingPage
 ```
@@ -47,6 +48,7 @@ python -m pipeline.stock.bond_rate                # 10Y/30Y 国债活跃券收�
 python -m pipeline.stock.nq_overnight             # 纳指期货隔夜涨跌 + 分时
 python -m pipeline.stock.us_perf                  # 纳指100+七巨头+权重股+财报
 python -m pipeline.stock.ndx_pe                   # 纳指100 市盈率近 20 年百分位(定投页估值档位)
+python -m pipeline.stock.qdii_premium             # 易方达纳指 159696 每日溢价率(增量; 删输出文件即全量)
 
 # 房价
 python -m pipeline.housing.scrape_housing_data --year 2026   # 抓某年（默认 2026）
@@ -61,6 +63,7 @@ python -m tests.test_nq_overnight        # NQ 隔夜窗口逻辑(合成 bar)
 python -m tests.test_bond_rate           # 活跃券选取(合成成交行)
 python -m tests.test_us_perf             # 月/年基准选取 + 财报解析(合成日线)
 python -m tests.test_ndx_pe              # 纳指PE 页面解析 + 20 年窗口百分位(合成 HTML)
+python -m tests.test_qdii_premium        # 溢价率增量翻页 / 断档补齐 / 合并覆盖(合成净值页)
 python -m tests.test_parse               # 房价 parser 回归
 
 # 前端
@@ -194,6 +197,12 @@ akshare 的韭圈儿接口已删，理杏仁开放平台有 `us/index/fundamenta
   - **两条轴都从 0 起**，右轴还钉了 `max ≥ 5`（2015 峰值 4.70%）：各自 `scale` 会把「余额创新高而占比没跟上」这唯一值钱的信息抹平，而万亿和 % 两个数量级撞在一起时两条线会叠成一根。
   - **这张图恒定比同页成交额慢一天**，不是故障：交易所收盘后当晚才公布当日余额，`update.yml` 两条 cron（北京 16:30 / 18:00）都赶不上。每趟都全量重拉，缺的次日自己补齐，所以别为它单加 cron，也不做增量。
   - 同 `turnover_data.js` **不带 `updated`**（节假日重跑数据一样，有时间戳就白刷一次 commit）。对过账：上交所官网 2026-08-31 沪市融资余额 1.3475 万亿，东财两市合计 2.6355 万亿；`RZRQYE == RZYE + RQYE` 逐位相等，3989 行零重复零空值。改这块跑 `tests/test_tencent_parse.py`（翻页翻全 / 空返回抛错）。
+- **易方达纳指溢价率走势（`QdiiPage` 的 `PremCard`）**：`stock/qdii_premium.py` 拉东财净值 `api.fund.eastmoney.com/f10/lsjz`（**必须带 `Referer: fundf10.eastmoney.com`**，不带 `Data` 回 null、HTTP 照样 200；`pageSize` 填多大都只给 20 条）+ 腾讯 `fqkline` **不复权** `day`（单位净值也不复权，两边同口径）→ `qdii_premium_data.js` 只存 `dates/close/nav`，溢价率 = 收盘 ÷ 净值 − 1 在前端现算。约束：
+  - **增量，历史就存在输出文件里**：溢价率是同一天两个数的比值，算出来就定死了（拆份额两边一起变），所以每次读回上次的输出，只拉净值第 1 页（20 条 ≈ 4 周）+ 那段起的日线，按日期合并、同日新的覆盖旧的（盖住东财偶尔修正的近几天净值）。这页最老一条都比历史末日新就继续翻页直到接上（CI 断了一个多月也能自己补齐）。**输出文件丢了/坏了就是全量**（39 页，~8 秒），所以 `us_perf.last()` 那条「别在文件开头加带 `=`/`;` 的注释」这里同样适用。
+  - 腾讯日线走**裸域 `ifzq.gtimg.cn`**（同 `QdiiPage` 的 `useBase`），这个域名下 `param` 的起始日真按日期截，增量时只回那几根。
+  - **曲线恒定比行情晚一天**：QDII 的 T 日净值 T+1 才公布，当天只有价格没净值的那天被内连接丢掉、下次补上。净值表里 `2023-12-31`/`2024-06-30` 这种半年末估值行同样被内连接丢掉。
+  - **假尖刺是口径本身，不是数据坏了**：A 股 15:00 收盘，T 日净值按美股当晚收盘算，美股当晚暴涨暴跌就出一根（2025-04-09 关税暂停那晚美股 +12%，当天算出 −9.2%），集思录也是这个口径，卡片副标题写明。`sanity_check()` 卡 ±30%（实测 −9.2%~+13.1%），出格说明复权口径或单位错位。
+  - 挂 `update.yml`，`continue-on-error`，不带 `updated`（同 `turnover_data.js`）。改翻页/合并跑 `tests/test_qdii_premium.py`。
 - 只导出今年以来的数据（`stock/median_trend.py` 的 `main()` 末尾按 `%Y-01-01` 过滤）。
 
 ## 房价侧的坑

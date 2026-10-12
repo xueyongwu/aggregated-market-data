@@ -22,6 +22,7 @@ run_stock() {
   echo "▶ 宽基指数..."     ; "$PY" -m pipeline.stock.index_perf            || echo "  (跳过)"
   echo "▶ 国债活跃券..."   ; "$PY" -m pipeline.stock.bond_rate             || echo "  (跳过)"
   echo "▶ NQ 隔夜..."      ; "$PY" -m pipeline.stock.nq_overnight          || echo "  (跳过)"
+  echo "▶ QDII溢价率..."   ; "$PY" -m pipeline.stock.qdii_premium          || echo "  (跳过)"
   echo "▶ 美股..."         ; "$PY" -m pipeline.stock.us_perf               || echo "  (跳过)"
   echo "▶ 纳指PE百分位..." ; "$PY" -m pipeline.stock.ndx_pe                || echo "  (跳过)"
 }

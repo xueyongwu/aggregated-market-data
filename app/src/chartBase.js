@@ -43,6 +43,18 @@ export const yPrice = (C) => ({
   axisTick: { show: false },
 });
 
+// 区间筛选 -> 起始下标。range: "all" / "ytd" / 年数; 近 N 年按「N 年前的今天」切, 不是按自然年。
+// 数据本身不够 N 年时切不动, 等于全部(成交额那份只有 5 年, 「近 5 年」档就是这样)
+export function since(dates, range) {
+  if (range === "all") return 0;
+  const last = dates[dates.length - 1];
+  const from = range === "ytd"
+    ? last.slice(0, 4) + "-01-01"
+    : (+last.slice(0, 4) - range) + last.slice(4);
+  const i = dates.findIndex((d) => d >= from);
+  return i < 0 ? 0 : i;
+}
+
 /** 日期类目横轴，标签只显 MM-DD。 */
 export const xDate = (C) => ({
   type: "category",

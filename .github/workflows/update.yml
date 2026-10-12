@@ -46,6 +46,8 @@ jobs:
         continue-on-error: true  # 新浪外盘接口偶发失败不阻断, 页面用旧数据
       - run: python -m pipeline.stock.bond_rate
         continue-on-error: true  # 中国货币网偶发失败不阻断, 页面用旧数据(卡片自带成交时间戳)
+      - run: python -m pipeline.stock.qdii_premium
+        continue-on-error: true  # 东财净值/腾讯日线偶发失败不阻断; 增量的, 断几天下次翻页补回
       - name: commit & push
         env:
           GH_TOKEN: ${{ github.token }}
@@ -56,6 +58,7 @@ jobs:
                   app/src/data/margin_data.js \
                   app/src/data/idx_data.js \
                   app/src/data/nq_data.js app/src/data/bond_data.js \
+                  app/src/data/qdii_premium_data.js \
                   cache/st_codes.json
           git diff --cached --quiet && exit 0
           git commit -m "chore: daily data update $(date -u +%F)"

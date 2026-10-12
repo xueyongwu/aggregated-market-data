@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { echarts } from "../echarts";
 import { useTheme, vars } from "../theme";
-import { COLORS, MOBILE, fmtP, tip, xDate, yPct } from "../chartBase";
+import { COLORS, MOBILE, fmtP, since, tip, xDate, yPct } from "../chartBase";
 import { MEDIAN_DATA as D } from "../data/median_data";
 import { TURNOVER } from "../data/turnover_data";
 import { MARGIN } from "../data/margin_data";
@@ -30,17 +30,6 @@ const MA20 = (() => {
   });
 })();
 
-// 区间 -> 起始下标。近 N 年按「N 年前的今天」切, 不是按自然年;
-// 成交额那份本来就只有 5 年, 「近 5 年」档切不动, 等于全部
-function since(dates, range) {
-  if (range === "all") return 0;
-  const last = dates[dates.length - 1];
-  const from = range === "ytd"
-    ? last.slice(0, 4) + "-01-01"
-    : (+last.slice(0, 4) - range) + last.slice(4);
-  const i = dates.findIndex((d) => d >= from);
-  return i < 0 ? 0 : i;
-}
 const sign = (v) => (v >= 0 ? "pos" : "neg");
 
 // 今年以来切片; 累计从 0 起重算
