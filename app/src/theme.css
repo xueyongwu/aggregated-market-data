@@ -588,9 +588,6 @@ table.dt {
 .dt tbody tr.hl td:first-child {
   background: linear-gradient(rgba(47, 116, 208, 0.1), rgba(47, 116, 208, 0.1)), var(--surface);
 }
-.dt tbody tr.idx td {
-  font-weight: 640;
-}
 @media (max-width: 680px) {
   .dt th,
   .dt td {

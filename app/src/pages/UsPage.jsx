@@ -49,7 +49,7 @@ function PerfCard() {
           </thead>
           <tbody>
             {sorted.map((r) => (
-              <tr key={r.name} className={["纳斯达克100", "标普500"].includes(r.name) ? "hl idx" : ""}>
+              <tr key={r.name} className={["纳斯达克100", "标普500"].includes(r.name) ? "hl" : ""}>
                 <td className="nm">{r.name}</td>
                 <td>{r.close.toFixed(2)}</td>
                 <Pct v={r.day} />
