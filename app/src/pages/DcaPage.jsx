@@ -363,7 +363,7 @@ export default function DcaPage() {
                 {NDX_PE.date.slice(5)} 市盈率 {NDX_PE.pe.toFixed(2)}，估值百分位 {NDX_PE.pct.toFixed(1)}%
               </span>
             </b>
-            <p>按近 20 年估值百分位定每次金额：1000 元起步，估值每降 10% 追加 500 元</p>
+            <p>策略：按近 20 年估值百分位定每次金额：1000 元起步，估值每降 10% 追加 500 元</p>
             <ol className="ladder">
               {LADDER.map(([k, v], i) => (
                 // 估值越低底色越深: 越便宜投得越多
