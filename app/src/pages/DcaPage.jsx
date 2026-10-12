@@ -344,16 +344,17 @@ export default function DcaPage() {
         <div className="planGrid">
           <div className="planItem">
             <b>普通定投</b>
-            <p>周定投，每周至少一笔</p>
+            <p>策略：周定投，每周至少一笔</p>
           </div>
           <div className="planItem">
             <b>低点加仓</b>
-            <p>累跌 2% 以上</p>
+            <p>策略：累跌 2% 以上</p>
           </div>
           <div className="planItem">
             <b>新高减仓</b>
-            <p>仓位：低点加仓的仓位</p>
             <p>时机：指数创新高时</p>
+            <p>仓位：优先低点加仓的仓位</p>
+            <p>策略：分批减仓，每次 1～2 份金额</p>
           </div>
           <div className="planItem wide">
             <b>
