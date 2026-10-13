@@ -58,7 +58,7 @@ jobs:
                   app/src/data/margin_data.js \
                   app/src/data/idx_data.js \
                   app/src/data/nq_data.js app/src/data/bond_data.js \
-                  app/src/data/qdii_premium_data.js \
+                  app/src/data/qdii_premium_data.js app/src/data/qdii_premium_ndxt_data.js \
                   cache/st_codes.json
           git diff --cached --quiet && exit 0
           git commit -m "chore: daily data update $(date -u +%F)"
