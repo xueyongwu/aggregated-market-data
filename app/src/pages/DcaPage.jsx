@@ -39,7 +39,7 @@ const ymd = (ms) => {
 };
 
 /**
- * 自 SINCE 起：周定投、定投缺失、低点加仓(同周其余买入)、加仓剩余(加仓 − 卖出)。
+ * 自 SINCE 起：周定投、定投缺失、加仓(其余买入)、减仓(全部卖出)、加仓剩余(加仓 − 减仓)。
  * 周定投 = 每周第一笔买入(恒定不变) + 行尾标了 "定投" 的买入(用户特别指定的额外定投，
  * 一周可以有多笔)。其余买入算加仓。
  *
@@ -52,12 +52,13 @@ const CLOSED = new Set([]);
 
 function swing(trades) {
   const weeks = new Map(); // 周一 → 当周定投的成交时间
-  let dca = 0, dcaN = 0, add = 0, addN = 0, cut = 0;
+  let dca = 0, dcaN = 0, add = 0, addN = 0, cut = 0, cutN = 0;
   for (const [t, qty, , , tag] of trades) {
     if (t < SINCE) continue;
     const w = monday(t);
     if (qty < 0) {
       cut += -qty;
+      cutN++;
     } else if (!weeks.has(w) || tag === "定投") {
       weeks.set(w, [...(weeks.get(w) || []), t]);
       dca += qty;
@@ -80,7 +81,7 @@ function swing(trades) {
     }
     owed -= Math.min(owed, Math.max(ts.length - 1, 0)); // 多出来的定投补之前的缺口
   }
-  return { dca, dcaN, add, addN, cut, left: add - cut, dcaAt, missed, owed };
+  return { dca, dcaN, add, addN, cut, cutN, left: add - cut, dcaAt, missed, owed };
 }
 
 // 估值定额: 近 20 年估值百分位每降 10%，每次定投追加 500 元(1000 元起步)。
@@ -116,6 +117,28 @@ function calc(trades) {
   return { rows, shares, bought, sold, net: bought - sold, avg: shares ? (bought - sold) / shares : 0 };
 }
 
+/**
+ * 当日盈亏，口径同券商 App：昨日持仓按 (现价 − 昨收)，当日买入按 (现价 − 成交价)，
+ * 当日卖出按 (成交价 − 昨收)，都不扣费用；百分比分母 = 昨日市值 + 当日买入金额。
+ * 早先是「全部持仓 × (现价 − 昨收)」，当天有买入就把新买的股数也当成昨收买的 ——
+ * 2026-10-15 买了两笔，算出 −1,827.80 / −3.365%，App 是 −1,695.80 / −3.130%(本口径逐位一致)。
+ * d = 快照所属交易日(YYYY-MM-DD)，周末/节假日看页面时「当日」是上个交易日，不是今天。
+ */
+function dayPnl(rows, shares, d, p, prev) {
+  let pnl = 0, base = 0, held = shares;
+  for (const r of rows) {
+    if (!r.t.startsWith(d)) continue;
+    held -= r.qty;
+    if (r.qty > 0) {
+      pnl += r.qty * (p - r.price);
+      base += r.qty * r.price;
+    } else pnl += -r.qty * (r.price - prev);
+  }
+  pnl += held * (p - prev);
+  base += held * prev;
+  return { pnl, pct: base > 0 ? (pnl / base) * 100 : null };
+}
+
 export default function DcaPage() {
   const { theme } = useTheme();
   const box = useRef(null);
@@ -132,10 +155,12 @@ export default function DcaPage() {
       if (!first && !aOpen()) return;
       first = false;
       jsonp("https://qt.gtimg.cn/q=" + DCA.code, () => {
-        const f = (window["v_" + DCA.code] || "").split("~"); // [3]现价 [4]昨收
+        const f = (window["v_" + DCA.code] || "").split("~"); // [3]现价 [4]昨收 [30]时间戳
         const p = +f[3];
+        const m = /^(\d{4})(\d{2})(\d{2})/.exec(f[30] || "");
+        const d = m ? `${m[1]}-${m[2]}-${m[3]}` : null;
         // 3s 一轮多数时候价格没动，同值时保留旧对象，免得整页(含 79 行明细)白重渲一次
-        if (p > 0) setLive((o) => (o && o.p === p && o.prev === +f[4] ? o : { p, prev: +f[4] }));
+        if (p > 0) setLive((o) => (o && o.p === p && o.prev === +f[4] && o.d === d ? o : { p, prev: +f[4], d }));
       });
     }, 3000); // 3s: 同 BondPage 的日内轮询, 单只快照回 ~200B
   }, []);
@@ -143,8 +168,8 @@ export default function DcaPage() {
   const now = live?.p ?? lastTrade.price;
   const value = V.shares * now;
   const total = value - V.net; // 总盈亏 = 市值 − 净投入
-  // 当日盈亏: 昨收拿不到(降级/停牌)时留空, 别拿成交价当昨收凑一个假数
-  const today = live?.prev > 0 ? V.shares * (now - live.prev) : null;
+  // 当日盈亏: 昨收或交易日拿不到(降级/停牌)时留空, 别拿成交价当昨收凑一个假数
+  const today = live?.prev > 0 && live.d ? dayPnl(V.rows, V.shares, live.d, now, live.prev) : null;
 
   useEffect(() => {
     const C = vars(...COLORS);
@@ -241,8 +266,8 @@ export default function DcaPage() {
             <span className="v">—</span>
           ) : (
             <>
-              <span className={`v ${sign(today)}`}>{signed(today)}</span>
-              <span className={`u ${sign(today)}`}>{fmtP((now / live.prev - 1) * 100, 3)}</span>
+              <span className={`v ${sign(today.pnl)}`}>{signed(today.pnl)}</span>
+              <span className={`u ${sign(today.pnl)}`}>{today.pct == null ? "—" : fmtP(today.pct, 3)}</span>
             </>
           )}
         </div>
@@ -252,25 +277,30 @@ export default function DcaPage() {
       <div className="tiles">
         <div className="tile">
           <span className="k">周定投</span>
-          <span className="v">{S.dca.toLocaleString()}<small>股</small></span>
-          <span className="u">{S.dcaN} 笔 · 每周第一笔 + 指定</span>
+          <span className="v">{S.dca.toLocaleString()}<small>股 · {S.dcaN} 笔</small></span>
+          <span className="u">每周第一笔 + 指定</span>
         </div>
         <div className="tile lack">
           <span className="k">定投缺失</span>
           <span className="v">{S.owed}<small>笔</small></span>
           <span className="u">
-            累计缺 {S.missed} 笔 · 已补 {S.missed - S.owed}
+            累计缺 {S.missed} 笔 · 已补 {S.missed - S.owed} 笔
           </span>
         </div>
         <div className="tile">
-          <span className="k">低点加仓</span>
-          <span className="v">{S.add.toLocaleString()}<small>股</small></span>
-          <span className="u">{S.addN} 笔 · 同周其余买入</span>
+          <span className="k">加仓</span>
+          <span className="v">{S.add.toLocaleString()}<small>股 · {S.addN} 笔</small></span>
+          <span className="u">定投以外的买入</span>
         </div>
-        <div className="tile derived">
-          <span className="k">低点加仓剩余</span>
-          <span className="v">{S.left.toLocaleString()}<small>股</small></span>
-          <span className="u">低点加仓 − 新高减仓</span>
+        <div className="tile">
+          <span className="k">减仓</span>
+          <span className="v">{S.cut.toLocaleString()}<small>股 · {S.cutN} 笔</small></span>
+          <span className="u">
+            <b className="net">
+              加减仓差值 {S.left < 0 ? "−" : "+"}
+              {Math.abs(S.left).toLocaleString()} 股
+            </b>
+          </span>
         </div>
       </div>
 
