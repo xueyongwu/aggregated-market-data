@@ -123,6 +123,9 @@ function calc(trades) {
  * 早先是「全部持仓 × (现价 − 昨收)」，当天有买入就把新买的股数也当成昨收买的 ——
  * 2026-10-15 买了两笔，算出 −1,827.80 / −3.365%，App 是 −1,695.80 / −3.130%(本口径逐位一致)。
  * d = 快照所属交易日(YYYY-MM-DD)，周末/节假日看页面时「当日」是上个交易日，不是今天。
+ * held 回推到的是昨日持仓，已含当天卖掉的股数，末尾 held × (现价 − 昨收) 已经替它们算了一遍，
+ * 所以卖出这里记 (成交价 − 现价) 抵掉差额，合起来才是 (成交价 − 昨收)。早先直接记 (成交价 − 昨收)
+ * 算重了：2026-10-16 卖 10700 股算出 +1,488.20，App 是 +1,028.10 / +1.96%(本口径逐位一致)。
  */
 function dayPnl(rows, shares, d, p, prev) {
   let pnl = 0, base = 0, held = shares;
@@ -132,7 +135,7 @@ function dayPnl(rows, shares, d, p, prev) {
     if (r.qty > 0) {
       pnl += r.qty * (p - r.price);
       base += r.qty * r.price;
-    } else pnl += -r.qty * (r.price - prev);
+    } else pnl += -r.qty * (r.price - p);
   }
   pnl += held * (p - prev);
   base += held * prev;
