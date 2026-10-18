@@ -381,7 +381,8 @@ export default function DcaPage() {
           </div>
           <div className="planItem">
             <b>低点加仓</b>
-            <p>策略：累跌 2% 以上</p>
+            <p>时机：累跌 2% 以上</p>
+            <p>策略：分批加仓，每次 1～2 份金额</p>
           </div>
           <div className="planItem">
             <b>新高减仓</b>
