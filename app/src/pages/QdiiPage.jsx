@@ -4,12 +4,13 @@
 // 这一页几乎全是命令式的：两个数据源都没有 CORS 头，只能 <script> 注入，回调里直接改
 // 模块级的 NQ_OVERNIGHT 再重画图。硬搬进 React state 得把每根 bar 都变成不可变更新，
 // 8s 一轮的轮询下毫无收益 —— 图表本来就是 setOption 增量合并的。
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { echarts } from "../echarts";
 import { useTheme, vars } from "../theme";
 import { aOpen, jsonp, poll, usOpen } from "../jsonp";
 import { COLORS, MOBILE, clampTip, fmtP, since, tip, xDate, yPct, yPrice } from "../chartBase";
 import { Pct, useSort } from "../table";
+import Pull from "../pull";
 import { NQ_OVERNIGHT as NQ } from "../data/nq_data";
 import { QDII_PREMIUM } from "../data/qdii_premium_data";
 import { QDII_PREMIUM_NDXT } from "../data/qdii_premium_ndxt_data";
@@ -72,7 +73,7 @@ function nqRebase(item, live) {
 const NQ_URL =
   "https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20t=/GlobalFuturesService.getGlobalFuturesMinLine?symbol=NQ";
 
-function NqCard({ theme }) {
+function NqCard({ theme, tick }) {
   const box = useRef(null);
   const chart = useRef(null);
   // item 是 nq_data.js 里那条记录本身: nqRebase 原地改它的字段, 引用恒定, 不需要 ref/state
@@ -221,13 +222,14 @@ function NqCard({ theme }) {
     // 闭市(CME 每日 5:00-6:00 维护 + 周末)不轮询, 页面挂着过夜/过周末不空转 —— 但开页
     // 必取一次: 静态 path 只到上次 CI, 闭市时那一次补的正是收盘前的尾巴。
     // 手动刷新按钮不受门禁管。nqClosed 按设备本地时间判, 同本页其余时间逻辑。
+    // tick = 页面下拉刷新的计数: 变了就重挂轮询, 重挂那一拍算「开页」, 同样不看门禁。
     let first = true;
     return poll(() => {
       if (first || !nqClosed(new Date())) refresh();
       first = false;
     }, 30000);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [tick]);
 
   if (!item || !hero) return null;
   return (
@@ -361,8 +363,9 @@ function parseSnap(list) {
  *
  * 开页必取一次(整张表全靠快照, 没有静态兜底), 之后闭市就停 —— 页面挂着过夜不空转。
  * 节假日不判: 快照回上一交易日收盘, 值不变, 空转一天可接受。
- * list/open/ms 都是模块常量, 进依赖数组只是让 lint 满意, effect 仍然只跑一次。 */
-function useSnap(list, open, ms) {
+ * list/open/ms 都是模块常量, 进依赖数组只是让 lint 满意; 真正会变的只有 tick(页面下拉
+ * 刷新的计数) —— 变了就重挂轮询, 重挂那一拍同开页一样不看门禁, 立刻取一次。 */
+function useSnap(list, open, ms, tick) {
   const [rows, setRows] = useState([]);
   const [ts, setTs] = useState("");
   useEffect(() => {
@@ -377,7 +380,7 @@ function useSnap(list, open, ms) {
         setTs(stamp);
       });
     }, ms);
-  }, [list, open, ms]);
+  }, [list, open, ms, tick]);
   return { rows, ts };
 }
 
@@ -451,8 +454,8 @@ const perf = (rows, base) =>
 const CN_ALL = [...QDII, ...NDXT];
 const IS_NDXT = new Set(NDXT.map((x) => x[0].slice(2)));
 
-function CnTable() {
-  const { rows: snap, ts } = useSnap(CN_ALL, aOpen, 3000);
+function CnTable({ tick }) {
+  const { rows: snap, ts } = useSnap(CN_ALL, aOpen, 3000, tick);
   const rows = perf(snap, useBase(CN_ALL, CN_BARS, CN_YEARS, CN_FAR));
   const main = rows.filter((r) => !IS_NDXT.has(r.code));
 
@@ -637,8 +640,8 @@ function PremCard({ theme }) {
 // 10s 而不是上表那个 3s: 腾讯美股快照实测 19 秒才换一次 [30](75 秒里量到 19/18/19/19,
 // 夹着 ±1s 的抖动 —— 两台后端差一秒), 3s 会有五分之四的请求拿回同一份。取半个周期,
 // 屏幕上的价最多陈旧 10 秒。响应也小得多(两只 623B, 上表 12 只 6.1KB)。
-function UsTable() {
-  const { rows: snap, ts } = useSnap(USETF, usOpen, 10000);
+function UsTable({ tick }) {
+  const { rows: snap, ts } = useSnap(USETF, usOpen, 10000, tick);
   const rows = perf(snap, useBase(USETF, US_BARS, US_YEARS, US_FAR));
   const { sorted, th } = useSort(rows, "chg");
   if (!rows.length) return null; // 拉不到就整块不出现, 不占一张空卡片
@@ -682,14 +685,19 @@ function UsTable() {
   );
 }
 
+// 下拉刷新只重取实时那几路(NQ 分时 + 两张快照表), 不整页 reload: 基准 K 线(useBase)盘中
+// 不变, 一次 24 个请求还容易撞 fqkline 限流; 溢价走势是静态文件, 盘中没新点。
 export default function QdiiPage() {
   const { theme } = useTheme();
+  const [tick, setTick] = useState(0);
+  const pull = useCallback(() => setTick((t) => t + 1), []);
   return (
     <div className="wrap">
-      <NqCard theme={theme} />
-      <CnTable />
+      <Pull onPull={pull} />
+      <NqCard theme={theme} tick={tick} />
+      <CnTable tick={tick} />
       <PremCard theme={theme} />
-      <UsTable />
+      <UsTable tick={tick} />
       {/* 页尾一句话: 两张表差额是哪几样东西凑出来的。具体数就在表里, 不展开也不写死数值 */}
       <p className="note">
         QDII 与美股 ETF 的收益率差异受<b>汇率</b>、<b>费率</b>、<b>溢价率</b>、

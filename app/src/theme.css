@@ -716,6 +716,17 @@ table.dt {
 .nqReload.spin svg { animation: nqspin 0.8s linear infinite; }
 @keyframes nqspin { to { transform: rotate(360deg); } }
 
+/* 下拉刷新的圈(pull.jsx): 从屏幕顶上滑下来盖在导航上(z-index 高于 .nav 的 30) */
+.pull {
+  position: fixed; top: 0; left: 50%; z-index: 35; pointer-events: none;
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
+}
+.pull.ok, .pull.spin { color: var(--blue); }
+.pull.spin svg { animation: nqspin 0.8s linear infinite; }
+
 /* ========== 美股页表格的额外零件 ========== */
 /* 同比: 挂在金额下面的第二行, 小一号 */
 .dt .yo { display: block; font-size: 11px; margin-top: 2px; }
