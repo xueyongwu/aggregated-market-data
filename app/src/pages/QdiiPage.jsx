@@ -16,6 +16,9 @@ import { QDII_PREMIUM } from "../data/qdii_premium_data";
 import { QDII_PREMIUM_NDXT } from "../data/qdii_premium_ndxt_data";
 
 const GL = MOBILE ? 46 : 56; // 图表左边距, 窄屏收紧
+// NQ 分时窄屏不出 tooltip: 它就在页顶, 手指一碰就弹框盖住曲线, 还跟下拉刷新抢手势;
+// 数值看 hero。溢价率走势在页面中段、碰不到下拉, tooltip 照留。宽屏照常。
+const tipOr = (o) => (MOBILE ? { show: false } : o);
 
 // ── NQ 隔夜: 固定框 上一A股收盘(15:00) -> 下一交易日 15:00 的逐分钟类目槽 ──────────
 // 静态 path (nq_data.js, 上一收盘→缓存末) + 进行中时叠加实时 minLine tail(今06:00→now, 按 base 换算 pct)。
@@ -101,13 +104,13 @@ function NqCard({ theme, tick }) {
     chart.current.setOption(
       {
         yAxis: { min: -dev, max: dev, interval: dev / 3 },
-        tooltip: {
+        tooltip: tipOr({
           ...tip(C),
           formatter: (ps) => {
             const j = ps[0].dataIndex;
             return c[j] == null ? t[j] : `${t[j]}<br>涨跌 <b>${fmtP(c[j])}</b>`;
           },
-        },
+        }),
         xAxis: {
           data: t,
           // 首尾(上一收盘15:00 / 次收盘15:00)恒显; 中间窄屏每6小时标
@@ -131,7 +134,7 @@ function NqCard({ theme, tick }) {
       },
       { replaceMerge: [] },
     );
-    clampTip(chart.current, c.findLastIndex((v) => v != null));
+    if (!MOBILE) clampTip(chart.current, c.findLastIndex((v) => v != null));
   };
 
   useEffect(() => {
@@ -140,7 +143,7 @@ function NqCard({ theme, tick }) {
     const m = echarts.init(box.current, null, { renderer: "canvas" });
     m.setOption({
       grid: { left: GL, right: MOBILE ? 24 : 20, top: 20, bottom: 28 }, // right 留够末尾 15:00 标签半宽
-      tooltip: tip(C),
+      tooltip: tipOr(tip(C)),
       xAxis: {
         type: "category",
         boundaryGap: false,

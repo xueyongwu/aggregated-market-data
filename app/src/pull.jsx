@@ -1,8 +1,9 @@
 // 触屏下拉刷新。加到主屏的 Web App(index.html 里 apple-mobile-web-app-capable)没有浏览器
 // 那层下拉刷新和刷新按钮, 挂着的页面只能干等轮询 —— 手势自己接。
 //
-// 只在页顶、竖直往下拉时接管: 横向滑表格(.tWrap)、在图表里拖(.chart 有 tooltip / dataZoom)
-// 都不碰。onPull 只是「现在就取一次」, 转圈按固定时长收尾, 不等各路请求回来。
+// 只在页顶、竖直往下拉时接管, 横向滑表格(.tWrap)不碰。图表上也能拉: 页顶那张 NQ 分时
+// 窄屏不出 tooltip(见 QdiiPage 的 tipOr), 不跟它抢手势。
+// onPull 只是「现在就取一次」, 转圈按固定时长收尾, 不等各路请求回来。
 import { useEffect, useState } from "react";
 
 const TH = 70, MAX = 110; // 松手触发的阈值 / 最多拉多远(都是阻尼后的像素)
@@ -16,7 +17,7 @@ export default function Pull({ onPull }) {
     html.style.overscrollBehaviorY = "none";
     let s = null, lock = false, timer;
     const start = (e) => {
-      s = !lock && scrollY <= 0 && e.touches.length === 1 && !e.target.closest?.(".chart")
+      s = !lock && scrollY <= 0 && e.touches.length === 1
         ? { x: e.touches[0].clientX, y: e.touches[0].clientY, on: false, d: 0 }
         : null;
     };
