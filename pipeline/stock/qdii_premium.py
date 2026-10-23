@@ -1,6 +1,5 @@
 """场内 QDII 每日溢价率 -> QdiiPage 溢价走势图, 一只一个文件(FUNDS):
   - 易方达纳指100 ETF(sz159696) -> app/src/data/qdii_premium_data.js
-  - 景顺长城纳指科技 ETF(sz159509) -> app/src/data/qdii_premium_ndxt_data.js
 
 溢价率 = 当日收盘价 / 当日单位净值 - 1, 前端现算, 文件只存 dates/close/nav 三列。
   - 净值: 东财 api.fund.eastmoney.com/f10/lsjz, 要带 Referer, 否则回空。pageSize 填多大都只给 20 条
@@ -28,7 +27,6 @@ from pipeline.stock.us_perf import fetch
 # (腾讯代码, 输出文件, 导出变量名)。159696 那份文件名沿用不改, 省得前端和 CI 跟着动
 FUNDS = [
     ("sz159696", WEB_DATA / "qdii_premium_data.js", "QDII_PREMIUM"),
-    ("sz159509", WEB_DATA / "qdii_premium_ndxt_data.js", "QDII_PREMIUM_NDXT"),
 ]
 NAV_URL = "https://api.fund.eastmoney.com/f10/lsjz"
 # 裸域 ifzq.gtimg.cn 而不是 web.ifzq.gtimg.cn: 后者按 IP 限流(见 QdiiPage useBase 的注释)。
@@ -37,7 +35,7 @@ K_URL = "https://ifzq.gtimg.cn/appstock/app/fqkline/get?param={tx},day,{start},,
 START = "2010-01-01"
 MAX_PAGES = 100  # 当前全量 39 页; 翻到这还没完说明翻页参数失效在原地打转
 # 体检: 出格说明价格和净值错位了(复权口径/单位换了, 2:1 拆份额错一边就是 +100% 或 -50%)。
-# 不对称: 折价实测最深 -9.2%, 溢价 159509 实测高到 +39%(2026-10-09, 额度紧时场内抢筹), 159696 +15%
+# 不对称: 折价实测最深 -9.2%, 溢价实测 +19.1%; 额度紧时场内 QDII 溢价能冲到 +39%, 上限留宽
 MIN_PREM, MAX_PREM = -30, 80
 
 

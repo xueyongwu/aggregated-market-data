@@ -12,8 +12,7 @@ import { COLORS, MOBILE, clampTip, fmtP, since, tip, xDate, yPct, yPrice } from 
 import { Pct, useSort } from "../table";
 import Pull from "../pull";
 import { NQ_OVERNIGHT as NQ } from "../data/nq_data";
-import { QDII_PREMIUM } from "../data/qdii_premium_data";
-import { QDII_PREMIUM_NDXT } from "../data/qdii_premium_ndxt_data";
+import { QDII_PREMIUM as QP } from "../data/qdii_premium_data";
 
 const GL = MOBILE ? 46 : 56; // 图表左边距, 窄屏收紧
 // NQ 分时窄屏不出 tooltip: 它就在页顶, 手指一碰就弹框盖住曲线, 还跟下拉刷新抢手势;
@@ -271,9 +270,8 @@ function NqCard({ theme, tick }) {
 // ── 纳指100 场内 QDII 溢价对照 ────────────────────────────────────────────
 // 腾讯 qt 批量快照(逗号拼代码), <script> 注入绕 CORS。
 // 响应是 GBK, 但只取数字字段(分隔符 ~ 是 ASCII), 名称走本地表, 免解码。
-// 名单 = smartbox 搜「纳斯达克/纳指」里的 QDII-ETF, 剔除 513290(生物科技)、
-// 159509(纳指科技 NDXT) —— 这两只跟踪的不是纳指100。只要 ETF, 不含场内 LOF。
-// 159509 在同一张卡片里另起一张表(NDXT, 见下), 列与主表一致; 不并进主表, 否则极差/排序都被它带偏。
+// 名单 = smartbox 搜「纳斯达克/纳指」里的 QDII-ETF, 剔除跟踪的不是纳指100 的(如 513290 生物科技)。
+// 只要 ETF, 不含场内 LOF。
 // 字段: [3]现价 [30]时间戳 [32]涨跌幅% [37]成交额(万) [44]流通市值(亿) [77]溢价率%
 // 第三项 fee = 年化综合费率 = 管理费 + 托管费（东财 FundMNRateInfo 的 MGREXP + TRUSTEXP，
 // 2026-08-12 核对）。写死不抓：费率只在基金公司公告降费时变（年级别），为一列静态数字
@@ -297,8 +295,6 @@ const QDII = [
   ["sz159659", "招商", 0.65], ["sh513110", "华泰柏瑞", 1.0], ["sh513390", "博时", 0.65], ["sz159513", "大成", 1.0],
   ["sz159660", "汇添富", 0.65], ["sz159501", "嘉实", 0.6], ["sh513870", "富国", 0.6], ["sz159696", "易方达", 0.6],
 ];
-// 纳指科技(NDXT) 单列一张表, 费率同样取 MGREXP + TRUSTEXP(0.80% + 0.20%, 2026-10-13 核对)。
-const NDXT = [["sz159509", "景顺长城", 1.0]];
 const USETF = [["usQQQ", "QQQ", 0.2, 1], ["usQQQM", "QQQM", 0.15, 1]];
 const qAmt = (w) => (w >= 1e4 ? (w / 1e4).toFixed(2) + "亿" : Math.round(w) + "万");
 
@@ -448,33 +444,25 @@ const perf = (rows, base) =>
     ),
   }));
 
-// 场内 QDII 一张卡片两张表: 上面 12 只纳指100(高亮 159696), 下面纳指科技 159509, 列一致。
-// 两张表共用一次快照 / 一套基准请求(CN_ALL), 渲染时按名单拆开; 排序、极差各算各的。
-// 溢价率/规模/极差都只在 A股这侧; 极差只有一只时没意义, 不渲染 tfoot。
+// 12 只场内 QDII(高亮 159696)。溢价率/规模/极差都只在这张; 极差只有一只时没意义, 不渲染 tfoot。
 // 3s = 沪深 Level-1 快照切片的间隔, 上游本身就这个节奏, 再快只会拿回同一个 [30] 时间戳。
 // 代价 6.1KB/次 × 21000s 的 A股时段 ≈ 7000 请求/天/标签页; 真被限流就调到 8000(只是现价/
 // 涨跌幅跳得慢些, 溢价率那列的 IOPV 本来就跟不上这个分辨率)。
-const CN_ALL = [...QDII, ...NDXT];
-const IS_NDXT = new Set(NDXT.map((x) => x[0].slice(2)));
-
 function CnTable({ tick }) {
-  const { rows: snap, ts } = useSnap(CN_ALL, aOpen, 3000, tick);
-  const rows = perf(snap, useBase(CN_ALL, CN_BARS, CN_YEARS, CN_FAR));
-  const main = rows.filter((r) => !IS_NDXT.has(r.code));
+  const { rows: snap, ts } = useSnap(QDII, aOpen, 3000, tick);
+  const rows = perf(snap, useBase(QDII, CN_BARS, CN_YEARS, CN_FAR));
 
   return (
-    <div className="card qdii">
+    <div className="card">
       <h2>
         纳指100 场内QDII
         <span>
           {ts &&
-            ` · 共 ${main.length} 只 · 更新于 ${ts.slice(4, 6)}-${ts.slice(6, 8)} ` +
+            ` · 共 ${rows.length} 只 · 更新于 ${ts.slice(4, 6)}-${ts.slice(6, 8)} ` +
               `${ts.slice(8, 10)}:${ts.slice(10, 12)}:${ts.slice(12, 14)}`}
         </span>
       </h2>
-      <QTable rows={main} hl="159696" />
-      <h2 className="next">纳指科技 场内QDII</h2>
-      <QTable rows={rows.filter((r) => IS_NDXT.has(r.code))} />
+      <QTable rows={rows} hl="159696" />
     </div>
   );
 }
@@ -546,28 +534,20 @@ function QTable({ rows, hl }) {
   );
 }
 
-// ── 场内 QDII 每日溢价率走势: 易方达纳指(159696) / 景顺纳指科技(159509), 一张卡片下拉切换 ──
-// 数据是 qdii_premium.py 增量攒的收盘价 + 单位净值(一只一个文件), 溢价率在这里现算(文件不存冗余列)。
-// 159696 是定投标的(DcaPage), 上表也高亮的是它; 159509 是上面那张卡片里的第二张表。
-// 不轮询 —— 净值 T+1 才出, 盘中没新点。
-// 两只都是 2023-08 上市, 「近 3 年」只比「全部」少开头一个多月; 两档都留着, 前者跟着日子往后滑。
+// ── 易方达纳指(159696) 每日溢价率走势 ─────────────────────────────────────
+// 数据是 qdii_premium.py 增量攒的收盘价 + 单位净值, 溢价率在这里现算(文件不存冗余列)。
+// 只画这一只: 它是定投标的(DcaPage), 上表也高亮的是它。不轮询 —— 净值 T+1 才出, 盘中没新点。
+// 2023-08-25 上市, 「近 3 年」只比「全部」少开头一个多月; 两档都留着, 前者跟着日子往后滑。
 const P_RANGES = [["全部", "all"], ["今年以来", "ytd"], ["近 1 年", "1"], ["近 2 年", "2"], ["近 3 年", "3"]];
-const withPrem = (qp) => ({ ...qp, prem: qp.dates.map((_, i) => +((qp.close[i] / qp.nav[i] - 1) * 100).toFixed(2)) });
-// [代码, 标题名, 下拉框里的短名, 数据]。默认第一只(定投标的)。短名是为了窄屏两个框还能挤在右上角
-const P_FUNDS = [
-  ["159696", "易方达纳指", "易方达", withPrem(QDII_PREMIUM)],
-  ["159509", "景顺纳指科技", "景顺", withPrem(QDII_PREMIUM_NDXT)],
-];
+const PREM = QP.dates.map((_, i) => +((QP.close[i] / QP.nav[i] - 1) * 100).toFixed(2));
 
 function PremCard({ theme }) {
   const box = useRef(null);
-  const [fund, setFund] = useState(P_FUNDS[0][0]);
-  const [range, setRange] = useState("1"); // 默认近 1 年; 换基金不重置, 两只同期好对照
-  const [, title, , qp] = P_FUNDS.find((f) => f[0] === fund);
+  const [range, setRange] = useState("1"); // 默认近 1 年
   const S = useMemo(() => {
-    const i = since(qp.dates, range);
-    return { dates: qp.dates.slice(i), prem: qp.prem.slice(i), close: qp.close.slice(i), nav: qp.nav.slice(i) };
-  }, [qp, range]);
+    const i = since(QP.dates, range);
+    return { dates: QP.dates.slice(i), prem: PREM.slice(i), close: QP.close.slice(i), nav: QP.nav.slice(i) };
+  }, [range]);
 
   useEffect(() => {
     const C = vars(...COLORS);
@@ -610,22 +590,17 @@ function PremCard({ theme }) {
     };
   }, [S, theme]);
 
-  const n = qp.prem.length - 1;
+  const n = PREM.length - 1;
   return (
     <div className="card">
       <h2>
-        {title} 溢价率走势 <span className="dot">
-          最新 {qp.dates[n]} <b className={"premNow " + (qp.prem[n] >= 0 ? "pos" : "neg")}>{fmtP(qp.prem[n])}</b>
+        易方达纳指 溢价率走势 <span className="dot">
+          最新 {QP.dates[n]} <b className={"premNow " + (PREM[n] >= 0 ? "pos" : "neg")}>{fmtP(PREM[n])}</b>
         </span>
       </h2>
-      <div className="picks">
-        <select className="pick" value={fund} onChange={(e) => setFund(e.target.value)}>
-          {P_FUNDS.map(([code, , short]) => <option key={code} value={code}>{short}</option>)}
-        </select>
-        <select className="pick" value={range} onChange={(e) => setRange(e.target.value)}>
-          {P_RANGES.map(([label, r]) => <option key={r} value={r}>{label}</option>)}
-        </select>
-      </div>
+      <select className="pick" value={range} onChange={(e) => setRange(e.target.value)}>
+        {P_RANGES.map(([label, r]) => <option key={r} value={r}>{label}</option>)}
+      </select>
       <div ref={box} className="chart amt" />
       <p className="note">
         溢价率 = 收盘价 ÷ 当日单位净值 − 1（ 净值 T+1 公布，曲线比行情晚一天。

@@ -378,14 +378,6 @@ table,
 .card h2 span.dot::before {
   content: "· ";
 }
-/* 同一张卡片里的第二张表的标题, 跟上一张表拉开距离 */
-.card h2.next {
-  margin-top: 16px;
-}
-/* .card 默认底边 8px 是给图表留的, 表格贴底太挤 */
-.card.qdii {
-  padding-bottom: 18px;
-}
 .miss {
   padding: 40px;
   text-align: center;
@@ -681,11 +673,6 @@ table.dt {
   cursor: pointer;
 }
 .pick:hover { border-color: var(--baseline); }
-/* 两个下拉框并排(溢价率卡片: 基金 + 区间): 外层接管绝对定位, 框本身回到文档流 */
-.picks { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; }
-.picks .pick { position: static; }
-/* 两个框合起来 ~150px, 宽窄屏都给标题让位(窄屏标题长了就折行, 不钻到框底下) */
-.card:has(.picks) h2 { padding-right: 160px; }
 
 /* ========== hero 数字(NQ 隔夜) ========== */
 .hero {
