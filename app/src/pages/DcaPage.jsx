@@ -51,16 +51,16 @@ const ymd = (ms) => {
 const CLOSED = new Set([]);
 
 function swing(trades) {
-  const weeks = new Map(); // 周一 → 当周定投的成交时间
+  const weeks = new Map(); // 周一 → 当周定投在 trades 里的下标
   let dca = 0, dcaN = 0, add = 0, addN = 0, cut = 0, cutN = 0;
-  for (const [t, qty, , , tag] of trades) {
+  for (const [i, [t, qty, , , tag]] of trades.entries()) {
     if (t < SINCE) continue;
     const w = monday(t);
     if (qty < 0) {
       cut += -qty;
       cutN++;
     } else if (!weeks.has(w) || tag === "定投") {
-      weeks.set(w, [...(weeks.get(w) || []), t]);
+      weeks.set(w, [...(weeks.get(w) || []), i]);
       dca += qty;
       dcaN++;
     } else {
@@ -69,7 +69,9 @@ function swing(trades) {
     }
   }
 
-  const dcaAt = new Set([...weeks.values()].flat()); // 明细表按它打「定投」
+  // 明细表按它打「定投」。存下标不存时间：同一秒可以有两笔(2026-10-22 15:00 定投 1000 + 加仓 5000)，
+  // 按时间认会把加仓那笔也标成定投。
+  const dcaAt = new Set([...weeks.values()].flat());
   let missed = 0, owed = 0; // 累计缺的周数 / 其中还没补上的
   const thisWeek = monday(ymd(Date.now()));
   for (let w = monday(SINCE); w <= thisWeek; w += WEEK) {
@@ -333,14 +335,14 @@ export default function DcaPage() {
               </tr>
             </thead>
             <tbody>
-              {[...V.rows].reverse().map((r) => (
-                <tr key={r.t}>
+              {V.rows.map((r, i) => [r, i]).reverse().map(([r, i]) => (
+                <tr key={i}>
                   <td className="nm">
                     <span className="mHide">{r.t.slice(0, 5)}</span>
                     {r.t.slice(5, 16)}
                     <span className="cd">{week(r.t)}</span>
                   </td>
-                  {S.dcaAt.has(r.t) ? (
+                  {S.dcaAt.has(i) ? (
                     <td className="dcaBuy">定投</td>
                   ) : (
                     <td className={sign(r.qty)}>{r.qty > 0 ? "买入" : "卖出"}</td>
