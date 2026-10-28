@@ -216,7 +216,8 @@ export default function DcaPage() {
           name: "摊薄成本",
           type: "line",
           showSymbol: false,
-          data: R.map((r) => +r.avg.toFixed(3)),
+          // 成本 ≤ 0(已回本 / 清仓)那几笔断开不画: 卖到只剩 100 股时成本是 −189.9, 会把价格轴压扁
+          data: R.map((r) => (r.avg > 0 ? +r.avg.toFixed(3) : null)),
           lineStyle: { width: 2, color: C.avg },
         },
       ],
@@ -261,7 +262,8 @@ export default function DcaPage() {
           <span className="k">总盈亏</span>
           <span className={`v ${sign(total)}`}>{signed(total)}</span>
           <span className={`u ${sign(total)}`}>
-            {fmtP((total / V.net) * 100, 3)}
+            {/* 卖到累计卖出 > 累计买入时净投入 ≤ 0, 比值没意义(会出 −101%), App 此时显示 0.00% */}
+            {V.net > 0 ? fmtP((total / V.net) * 100, 3) : "0.000%"}
             <i>净投入 {money(V.net)}</i>
           </span>
         </div>
