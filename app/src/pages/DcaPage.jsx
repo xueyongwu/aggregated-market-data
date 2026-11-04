@@ -381,18 +381,32 @@ export default function DcaPage() {
         <div className="planGrid">
           <div className="planItem">
             <b>普通定投</b>
-            <p>策略：周定投，每周至少一笔</p>
+            <p>策略：周定投</p>
           </div>
           <div className="planItem">
             <b>低点加仓</b>
             <p>时机：累跌 2% 以上</p>
-            <p>策略：分批加仓，每次 1～2 份金额</p>
+            <p>策略：</p>
+            <ul>
+              <li>
+                分批加仓：早盘开盘、午盘开盘、<strong>尾盘集合竞价（主）</strong>
+              </li>
+              <li>每次 1～2 份金额</li>
+            </ul>
           </div>
           <div className="planItem">
             <b>新高减仓</b>
             <p>时机：指数创新高时</p>
-            <p>仓位：优先低点加仓的仓位</p>
-            <p>策略：分批减仓，每次 1～2 份金额</p>
+            <p>
+              仓位：优先<em>低点加仓</em>的仓位
+            </p>
+            <p>策略：</p>
+            <ul>
+              <li>
+                分批减仓：早盘开盘、午盘开盘、<strong>尾盘集合竞价（主）</strong>
+              </li>
+              <li>每次 1～2 份金额</li>
+            </ul>
           </div>
           <div className="planItem wide">
             <b>
@@ -401,7 +415,7 @@ export default function DcaPage() {
                 {NDX_PE.date.slice(5)} 市盈率 {NDX_PE.pe.toFixed(2)}，估值百分位 {NDX_PE.pct.toFixed(1)}%
               </span>
             </b>
-            <p>策略：按近 20 年估值百分位定每次金额：1000 元起步，估值每降 10% 追加 500 元</p>
+            <p>策略：按近 20 年估值百分位定每份金额：1000 元起步，估值每降 10% 追加 500 元</p>
             <ol className="ladder">
               {LADDER.map(([k, v], i) => (
                 // 估值越低底色越深: 越便宜投得越多

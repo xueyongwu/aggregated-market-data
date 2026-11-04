@@ -469,6 +469,19 @@ code {
   font-size: 12.5px;
   line-height: 1.7;
 }
+/* 「策略：」下面的二级要点(分批时点 / 每次份额), 方块圆点对应笔记里的二级列表 */
+.planItem ul {
+  margin: 0;
+  padding-left: 18px;
+  list-style: square;
+  color: var(--ink2);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+.planItem ul li::marker { color: var(--muted); }
+.planItem strong { color: var(--ink); font-weight: 600; }
+/* 正文里点名另一条策略(新高减仓 → 低点加仓), 与小标题同色 */
+.planItem em { color: var(--orange); font-style: normal; font-weight: 600; }
 .ladder {
   list-style: none;
   margin: 8px 0 0;
