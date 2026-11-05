@@ -389,7 +389,7 @@ export default function DcaPage() {
             <p>策略：</p>
             <ul>
               <li>
-                分批加仓：早盘开盘、午盘开盘、<strong>尾盘集合竞价（主）</strong>
+                分批加仓：早盘开盘、午盘开盘、<strong>尾盘集合竞价</strong>
               </li>
               <li>每次 1～2 份金额</li>
             </ul>
@@ -403,7 +403,7 @@ export default function DcaPage() {
             <p>策略：</p>
             <ul>
               <li>
-                分批减仓：早盘开盘、午盘开盘、<strong>尾盘集合竞价（主）</strong>
+                分批减仓：早盘开盘、午盘开盘、<strong>尾盘集合竞价</strong>
               </li>
               <li>每次 1～2 份金额</li>
             </ul>
