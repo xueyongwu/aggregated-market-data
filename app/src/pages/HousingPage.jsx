@@ -8,7 +8,7 @@ import {
   getFullTimeline,
   getMultiYearChangeCounts,
 } from "../data/housingData";
-import { chartColors, titleStyle, axisCommon, tooltipCommon } from "../chartTheme";
+import { chartColors, axisCommon, tooltipCommon } from "../chartTheme";
 import "../housing.css";
 
 const HOUSE_TYPES = [
@@ -20,17 +20,37 @@ const tierOrder = Object.keys(cityTiers);
 // ponytail: 挂载时判一次，旋转屏幕不重算；有人抱怨再监听 resize
 const isMobile = () => window.innerWidth < 768;
 
+// 分段按钮: 二手/新房、仅上涨/全部 两处共用
+function Seg({ items, value, onChange }) {
+  return (
+    <div className="seg">
+      {items.map(([k, label]) => (
+        <button key={k} className={k === value ? "on" : ""} onClick={() => onChange(k)}>{label}</button>
+      ))}
+    </div>
+  );
+}
+
+function CountTile({ label, now, prev }) {
+  const d = now - prev;
+  return (
+    <div className="tile">
+      <span className="k">{label}</span>
+      <span className="v">{now}<small>城</small></span>
+      <span className={"u " + (d > 0 ? "pos" : d < 0 ? "neg" : "")}>较上月 {d > 0 ? "+" : ""}{d}</span>
+    </div>
+  );
+}
+
 function CityListKpi({ label, cities, weak }) {
   return (
-    <div className="kpi-card">
-      <div className="kpi-label">{label}</div>
-      <div className="kpi-value-sm">
-        {cities.map((s, i) => (
-          <span key={s.city} className={`kpi-city-item${weak ? " weak" : ""}`}>
-            <span className="kpi-rank">{i + 1}</span>{s.city}<span className="kpi-val">{s.val}</span>
-          </span>
+    <div className="tile">
+      <span className="k">{label}</span>
+      <ol className={"rk" + (weak ? " weak" : "")}>
+        {cities.map((s) => (
+          <li key={s.city}><b>{s.city}</b><span>{s.val}</span></li>
         ))}
-      </div>
+      </ol>
     </div>
   );
 }
@@ -103,7 +123,6 @@ function HousingPage() {
     });
 
     const counts = multiYearData.counts[houseType];
-    const typeLabel = HOUSE_TYPES.find((t) => t.key === houseType).label;
     const mobile = isMobile();
     const total = multiYearData.timeline.length;
     // 手机默认只看最近 12 个月，历史靠拖拽/双指缩放；全量标签在小屏挤成一团
@@ -122,19 +141,10 @@ function HousingPage() {
     });
 
     const option = {
-      title: {
-        ...titleStyle(C, `70城${typeLabel}环比涨跌城市数量`, mobile ? 15 : 19),
-        top: 0,
-        itemGap: mobile ? 6 : 10,
-        subtext: mobile
-          ? "单位：城市个数　数据来源：国家统计局"
-          : "单位：城市个数　2021年7月 — 2026年5月　数据来源：国家统计局",
-        subtextStyle: { fontSize: mobile ? 11 : 12, color: C.ink3, lineHeight: 18 },
-      },
       tooltip: {
         ...tooltipCommon(C),
         trigger: "axis",
-        axisPointer: { type: "shadow", shadowStyle: { color: "rgba(0,0,0,0.03)" } },
+        axisPointer: { type: "shadow", shadowStyle: { color: C.rule, opacity: 0.5 } },
         formatter: (params) => {
           let s = `<b style="color:${C.ink}">${params[0].axisValue}</b><br/>`;
           params.forEach((p) => {
@@ -151,8 +161,8 @@ function HousingPage() {
         textStyle: { fontSize: 12, color: C.ink2 },
       },
       grid: mobile
-        ? { left: 34, right: 8, top: 64, bottom: 72 }
-        : { left: 46, right: 16, top: 76, bottom: 76 },
+        ? { left: 30, right: 8, top: 14, bottom: 72 }
+        : { left: 36, right: 12, top: 16, bottom: 76 },
       xAxis: {
         ...axisCommon(C),
         type: "category",
@@ -230,13 +240,6 @@ function HousingPage() {
     });
 
     yearChartInstance.current.setOption({
-      title: {
-        ...titleStyle(C, `${selectedYear}年70城环比上涨城市数量`, mobile ? 15 : 17),
-        top: 0,
-        itemGap: mobile ? 6 : 10,
-        subtext: "点击折线上的点可定位到下方明细表对应月份",
-        subtextStyle: { fontSize: 12, color: C.ink3, lineHeight: 18 },
-      },
       tooltip: {
         ...tooltipCommon(C),
         trigger: "axis",
@@ -255,8 +258,8 @@ function HousingPage() {
         textStyle: { fontSize: 12, color: C.ink2 },
       },
       grid: mobile
-        ? { left: 34, right: 8, top: 64, bottom: 46 }
-        : { left: 46, right: 16, top: 76, bottom: 50 },
+        ? { left: 30, right: 8, top: 24, bottom: 46 }
+        : { left: 36, right: 12, top: 28, bottom: 50 },
       xAxis: { ...axisCommon(C), type: "category", data: months },
       yAxis: {
         ...axisCommon(C),
@@ -286,83 +289,66 @@ function HousingPage() {
       window.removeEventListener("resize", handleResize);
       yearChartInstance.current?.dispose();
     };
-  }, [yearChartData, months, selectedYear]);
+  }, [yearChartData, months]);
+
+  const typeLabel = HOUSE_TYPES.find((t) => t.key === houseType).label;
+  // 时间跨度跟着数据走, 别写死(早前副标题写死「— 2026年5月」, 数据更新后就对不上)
+  const span = (v) => v.replace("-", "年");
+  const tl = multiYearData.timeline;
 
   return (
-    <div className="page">
-      <header className="page-header">
-        <h1 className="page-title">70城房价趋势分析</h1>
-        <p className="page-subtitle">
-          2021-2026年新建商品住宅与二手住宅环比变化
-          <span className="subtitle-source">数据来源：国家统计局</span>
-        </p>
+    <div className="wrap housing">
+      <header>
+        <div className="sub">{span(tl[0])} — {span(tl[tl.length - 1])} · 国家统计局</div>
       </header>
 
-      <section className="chart-section">
-        <div className="chart-toolbar">
-          {HOUSE_TYPES.map((t) => (
-            <button
-              key={t.key}
-              className={`chart-tab${houseType === t.key ? " active" : ""}`}
-              onClick={() => setHouseType(t.key)}
-            >
-              {t.label}
-            </button>
-          ))}
+      <div className="card">
+        <div className="hd">
+          <h2>
+            70城{typeLabel}环比涨跌城市数量<span className="dot">单位：城市个数 · 环比指数上月=100</span>
+          </h2>
+          <Seg items={HOUSE_TYPES.map((t) => [t.key, t.label])} value={houseType} onChange={setHouseType} />
         </div>
-        <div ref={multiYearChartRef} className="chart-box chart-box-lg" />
-      </section>
+        <div ref={multiYearChartRef} className="chart hm" />
+      </div>
 
-      <div className="filter-section">
-        <label className="filter-label">年度明细</label>
-        <select className="year-selector" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
+      <div className="yearbar">
+        <span className="tiles-h">{kpiData.month}（{selectedYear}年最新一期）</span>
+        <select className="pick" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
           {availableYears.map((year) => (<option key={year} value={year}>{year}年</option>))}
         </select>
       </div>
+      <div className="tiles c3">
+        <CountTile label="新房上涨" now={kpiData.newUpCount} prev={kpiData.newUpPrev} />
+        <CityListKpi label="新房最强" cities={kpiData.strongest} />
+        <CityListKpi label="新房最弱" cities={kpiData.weakest} weak />
+        <CountTile label="二手房上涨" now={kpiData.secondUpCount} prev={kpiData.secondUpPrev} />
+        <CityListKpi label="二手房最强" cities={kpiData.secondStrongest} />
+        <CityListKpi label="二手房最弱" cities={kpiData.secondWeakest} weak />
+      </div>
 
-      <section className="kpi-section">
-        <div className="kpi-grid">
-          <div className="kpi-card">
-            <div className="kpi-label">{kpiData.month} 新房上涨</div>
-            <div className="kpi-value">{kpiData.newUpCount}<span className="kpi-unit">城</span></div>
-            <div className={`kpi-change ${kpiData.newUpCount > kpiData.newUpPrev ? "up" : "down"}`}>
-              较上月{kpiData.newUpCount > kpiData.newUpPrev ? "+" : ""}{kpiData.newUpCount - kpiData.newUpPrev}
-            </div>
-          </div>
-          <CityListKpi label="新房最强城市" cities={kpiData.strongest} />
-          <CityListKpi label="新房最弱城市" cities={kpiData.weakest} weak />
-          <div className="kpi-card">
-            <div className="kpi-label">{kpiData.month} 二手房上涨</div>
-            <div className="kpi-value">{kpiData.secondUpCount}<span className="kpi-unit">城</span></div>
-            <div className={`kpi-change ${kpiData.secondUpCount > kpiData.secondUpPrev ? "up" : "down"}`}>
-              较上月{kpiData.secondUpCount > kpiData.secondUpPrev ? "+" : ""}{kpiData.secondUpCount - kpiData.secondUpPrev}
-            </div>
-          </div>
-          <CityListKpi label="二手房最强城市" cities={kpiData.secondStrongest} />
-          <CityListKpi label="二手房最弱城市" cities={kpiData.secondWeakest} weak />
+      <div className="card">
+        <h2>
+          {selectedYear}年70城环比上涨城市数量<span className="dot">点击折线上的点定位到下方明细</span>
+        </h2>
+        <div ref={yearChartRef} className="chart hy" />
+      </div>
+
+      <div className="card">
+        <div className="hd">
+          <h2>
+            {selectedYear}年各月环比城市明细<span className="dot">按统计局城市级别划分</span>
+          </h2>
+          <Seg items={[[false, "仅上涨"], [true, "全部城市"]]} value={showAllCities} onChange={setShowAllCities} />
         </div>
-      </section>
-
-      <section className="chart-section">
-        <div ref={yearChartRef} className="chart-box" />
-      </section>
-
-      <section className="table-section">
-        <div className="table-header-row">
-          <h2 className="table-title">{selectedYear}年各月环比城市明细（按城市级别划分）</h2>
-          <div className="table-toggle">
-            <button className={`toggle-btn ${!showAllCities ? "active" : ""}`} onClick={() => setShowAllCities(false)}>仅上涨城市</button>
-            <button className={`toggle-btn ${showAllCities ? "active" : ""}`} onClick={() => setShowAllCities(true)}>全部城市</button>
-          </div>
-        </div>
-        <div className="table-wrapper">
+        <div className="tWrap">
           <table className="data-table">
             <thead>
               <tr>
                 <th className="th-month">月份</th>
                 <th className="th-type">类型</th>
                 {tierOrder.map((tier) => (
-                  <th key={tier} className="th-tier"><span className="tier-badge">{tier}</span></th>
+                  <th key={tier} className="th-tier">{tier}</th>
                 ))}
               </tr>
             </thead>
@@ -403,11 +389,11 @@ function HousingPage() {
             </tbody>
           </table>
         </div>
-        <p className="data-source">
-          数据来源：国家统计局 · 环比指数以上月=100为基准，&gt;100表示价格上涨 ·
-          城市分级采用统计局口径：一线4城、二线31城（省会及计划单列市）、三线35城
-        </p>
-      </section>
+      </div>
+      <p className="note">
+        数据来源：国家统计局 · 环比指数以上月=100为基准，&gt;100表示价格上涨 ·
+        城市分级采用统计局口径：一线4城、二线31城（省会及计划单列市）、三线35城
+      </p>
     </div>
   );
 }

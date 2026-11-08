@@ -1,459 +1,252 @@
-/* 70 城房价页专属样式。色值全部走 theme.css 的 token。
+/* 70 城房价页专属样式。外壳(.wrap / .card / .tile / .note / .pick)走 theme.css 的全站零件,
+ * 这里只放本页独有的: 分段按钮、城市榜瓦片、明细表。
  *
- * 注意作用域：整合成单页应用后这份 CSS 是全局加载的，重置和字体只能落在 .page 里，
- * 落到 * / body 上会把股票那三页的间距一起清掉。 */
-.page * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+ * 注意作用域：这份 CSS 是全局加载的，选择器一律挂在 .housing 下，别写裸的 * / body / table 规则，
+ * 会把另外几页的样式一起改掉。 */
 
-.page {
-  color: var(--ink-2);
-}
-
-/* ========== 单页布局：一栏，靠留白和发丝线分区 ========== */
-.page {
-  width: 100%;
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 40px 32px 80px;
-  display: flex;
-  flex-direction: column;
-  gap: 48px;
-}
-
-.page-header {
-  text-align: center;
-  margin-bottom: 8px;
-}
-
-.page-title {
-  font-family: var(--serif);
-  font-size: 40px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  color: var(--ink);
-  margin: 0 0 14px;
-}
-
-.page-subtitle {
-  font-size: 14px;
-  line-height: 1.7;
-  color: var(--ink-3);
-  margin: 0;
-}
-
-/* 数据来源单独一行 */
-.subtitle-source {
-  display: block;
-}
-
-/* ========== 年份筛选器 ========== */
-.filter-section {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--rule);
-}
-
-.filter-label {
-  font-family: var(--serif);
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--ink);
-  letter-spacing: 0.5px;
-}
-
-.year-selector {
-  padding: 6px 12px;
-  font-size: 14px;
-  font-weight: 500;
-  border: 1px solid var(--rule);
-  border-radius: 2px;
-  background: var(--surface);
-  color: var(--ink);
-  cursor: pointer;
-  transition: border-color 0.2s;
-  min-width: 110px;
-}
-
-.year-selector:hover,
-.year-selector:focus {
-  outline: none;
-  border-color: var(--ink-3);
-}
-
-/* ========== 区块标题 ========== */
-.table-title {
-  font-family: var(--serif);
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--ink);
-  letter-spacing: 0.5px;
-  margin: 0;
-}
-
-/* ========== 图表 ========== */
-.chart-toolbar {
-  display: flex;
-  gap: 20px;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
-/* 切换做成低调文字 tab，选中靠下划线 */
-.chart-tab {
-  padding: 4px 0;
-  font-size: 13px;
-  font-weight: 500;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--ink-3);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.chart-tab:hover {
-  color: var(--ink);
-}
-
-.chart-tab.active {
-  color: var(--ink);
-  border-bottom-color: var(--ink);
-  font-weight: 600;
-}
-
-.chart-box {
-  width: 100%;
-  height: 400px;
-}
-
-.chart-box-lg {
-  height: 460px;
-}
-
-/* ========== KPI 概览：统计年鉴式竖分栏 ========== */
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  border-top: 1px solid var(--rule);
-}
-
-.kpi-card {
-  border-right: 1px solid var(--rule);
-  padding: 18px 20px 18px 0;
-  margin-right: 20px;
-}
-
-.kpi-card:last-child {
-  border-right: none;
-}
-
-.kpi-label {
-  font-size: 11px;
-  letter-spacing: 1px;
-  color: var(--ink-3);
-  margin-bottom: 10px;
-  font-weight: 500;
-}
-
-.kpi-value {
-  font-family: var(--serif);
-  font-size: 30px;
-  font-weight: 600;
-  color: var(--ink);
-  line-height: 1.1;
-}
-
-.kpi-unit {
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--ink-3);
-  margin-left: 3px;
-}
-
-.kpi-change {
-  font-size: 12px;
-  font-weight: 600;
-  margin-top: 8px;
-}
-
-.kpi-change.up {
-  color: var(--up);
-}
-
-.kpi-change.down {
-  color: var(--down);
-}
-
-.kpi-value-sm {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  margin-top: 4px;
-}
-
-.kpi-city-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink);
-}
-
-.kpi-city-item.weak {
-  color: var(--down);
-}
-
-.kpi-rank {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  color: var(--ink-4);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.kpi-val {
-  font-size: 11px;
-  color: var(--ink-3);
-  font-weight: 400;
-}
-
-/* ========== 明细表 ========== */
-.table-header-row {
+/* ========== 卡片头: 标题 + 右侧分段按钮 ========== */
+.housing .card .hd {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: flex-start;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--rule);
+  gap: 8px 12px;
+  margin: 0 0 4px;
+}
+.housing .card .hd h2 {
+  flex: 1;
+  min-width: 0;
+}
+.housing .card .hd .seg {
+  margin-right: 6px;
 }
 
-.table-toggle {
-  display: flex;
-  gap: 20px;
+/* 分段按钮(二手/新房、仅上涨/全部): 灰槽 + 选中项浮起的白块 */
+.housing .seg {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--grid);
+  flex-shrink: 0;
 }
-
-/* 文字 tab + 下划线，跟图表切换同一套 */
-.toggle-btn {
-  padding: 4px 0;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--ink-3);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.toggle-btn.active {
-  color: var(--ink);
-  border-bottom-color: var(--ink);
-  font-weight: 600;
-}
-
-.toggle-btn:hover:not(.active) {
-  color: var(--ink);
-}
-
-.table-wrapper {
-  width: 100%;
-  overflow-x: auto;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.data-table thead th {
-  padding: 10px;
+.housing .seg button {
+  font: inherit;
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  color: var(--ink-3);
-  text-align: center;
-  border-bottom: 1px solid var(--ink-4);
+  color: var(--muted);
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  padding: 4px 10px;
+  cursor: pointer;
   white-space: nowrap;
 }
-
-.th-month {
-  width: 60px;
+.housing .seg button:hover {
+  color: var(--ink2);
 }
-
-.th-type {
-  width: 80px;
-}
-
-.th-tier {
-  min-width: 220px;
-}
-
-/* 城市级别只是分组表头，走灰阶，不参与配色 */
-.tier-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 2px;
-  background: var(--rule-soft);
-  color: var(--ink-2);
-  font-size: 12px;
+.housing .seg button.on {
+  color: var(--ink);
   font-weight: 600;
-  letter-spacing: 1px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.08);
 }
 
-.data-table tbody td {
-  padding: 10px;
-  border-bottom: 1px solid var(--rule-soft);
+/* ========== 年份切换 + KPI 瓦片 ========== */
+.housing .yearbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 22px 6px 10px;
+}
+.housing .yearbar .tiles-h {
+  margin: 0;
+}
+/* .pick 全站默认是绝对定位到卡片右上角的, 这里就地排在行里 */
+.housing .yearbar .pick {
+  position: static;
+}
+/* 6 张瓦片 = 新房一行(上涨/最强/最弱) + 二手房一行, 窄屏也保持 3 列, 否则两行对不齐 */
+.housing .tiles.c3 {
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 0;
+}
+
+/* 「较上月 ±n」按涨跌着色: .tile .u 自带墨色且特异性更高, 单写 .pos/.neg 盖不过 */
+.housing .tile .u.pos { color: var(--up); }
+.housing .tile .u.neg { color: var(--down); }
+
+/* 城市榜: 城市名 + 当月环比指数, 最强标红、最弱标绿 */
+.housing .rk {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.housing .rk li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+.housing .rk b {
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.housing .rk span {
+  font-variant-numeric: tabular-nums;
+  color: var(--up);
+}
+.housing .rk.weak span {
+  color: var(--down);
+}
+
+/* ========== 图表高度 ========== */
+.housing .chart.hm { height: 440px; }
+.housing .chart.hy { height: 320px; }
+
+/* ========== 明细表 ========== */
+.housing .tWrap {
+  margin-top: 10px;
+}
+/* separate 而不是 collapse: collapse 下边框归表格不归单元格, 左侧两列 sticky 时边框会留在原地不跟走 */
+.housing .data-table {
+  --mw: 56px; /* 月份列宽 = 类型列的 sticky 偏移, 两处共用 */
+  --tw: 68px;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.housing .data-table thead th {
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  text-align: left;
+  background: var(--thead-bg);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.housing .data-table thead th.th-month,
+.housing .data-table thead th.th-type {
+  text-align: center;
+}
+.housing .th-tier { min-width: 220px; }
+
+/* 月份、类型两列钉在左侧, 横滑看二三线时不跟走。宽度锁死(min=max), 否则类型列的
+   left 偏移和月份列实际宽度对不上会露缝; sticky 格必须自带不透明底, 不然城市标签从下面透出来 */
+.housing .th-month,
+.housing .td-month {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: var(--mw);
+  min-width: var(--mw);
+  max-width: var(--mw);
+  background: var(--surface);
+}
+.housing .th-type,
+.housing .td-type {
+  position: sticky;
+  left: var(--mw);
+  z-index: 1;
+  width: var(--tw);
+  min-width: var(--tw);
+  max-width: var(--tw);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.housing .data-table tbody td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rowline);
   vertical-align: middle;
   text-align: center;
 }
-
-.data-table tbody tr:hover {
-  background: var(--rule-soft);
-}
-
-.td-month {
+/* 月份格 rowSpan=2 横跨新房/二手两行, 底线要和整组对齐 */
+.housing .td-month {
   font-weight: 600;
-  font-size: 14px;
   color: var(--ink);
+  border-bottom: 1px solid var(--border) !important;
 }
-
-.td-type {
-  font-weight: 500;
-  font-size: 13px;
+.housing .data-table tbody tr:nth-child(2n) td {
+  border-bottom-color: var(--border);
+}
+.housing .td-type {
+  font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
 }
+.housing .td-type-new { color: var(--series-1); }
+.housing .td-type-second { color: var(--series-2); }
+.housing .data-table td.td-cities { text-align: left; }
 
-.td-type-new {
-  color: var(--series-1);
-}
-
-.td-type-second {
-  color: var(--series-2);
-}
-
-.td-cities {
-  text-align: left !important;
-  padding: 8px 10px !important;
-}
-
-.city-tags {
+.housing .city-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
-
-/* 标签只表达涨/平/跌，不表达城市级别 */
-.city-tag {
+/* 标签只表达涨/平/跌，不表达城市级别: 浅色底 + 同色字, 不描边 */
+.housing .city-tag {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 4px;
-  padding: 2px 8px;
-  border-radius: 2px;
-  border: 1px solid;
-  font-size: 13px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 12.5px;
   font-weight: 500;
   white-space: nowrap;
 }
-
-.city-tag.tag-up {
-  border-color: var(--up);
+.housing .city-tag.tag-up {
   color: var(--up);
-  background: color-mix(in srgb, var(--up) 8%, transparent);
+  background: color-mix(in srgb, var(--up) 10%, transparent);
 }
-
-.city-tag.tag-down {
-  border-color: var(--down);
+.housing .city-tag.tag-down {
   color: var(--down);
-  background: color-mix(in srgb, var(--down) 8%, transparent);
+  background: color-mix(in srgb, var(--down) 10%, transparent);
 }
-
-.city-tag.tag-flat {
-  border-color: var(--ink-4);
-  color: var(--ink-3);
+.housing .city-tag.tag-flat {
+  color: var(--ink2);
+  background: var(--grid);
 }
-
-.city-value {
+.housing .city-value {
   font-size: 11px;
-  opacity: 0.7;
+  opacity: 0.75;
   font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
-
-.no-city {
+.housing .no-city {
   color: var(--ink-4);
-  font-size: 15px;
 }
 
 /* 折线图点击后定位到的行 */
-.row-highlighted,
-.row-highlighted td {
-  background: var(--highlight) !important;
+.housing .row-highlighted td {
+  background: var(--highlight);
   transition: background 0.3s;
 }
 
-.data-source {
-  font-size: 12px;
-  color: var(--ink-4);
-  margin-top: 20px;
-  padding-top: 12px;
-  border-top: 1px solid var(--rule);
-}
-
-/* ========== 响应式 ========== */
-@media (max-width: 768px) {
-  .page {
-    padding: 32px 16px 48px;
-    gap: 32px;
-  }
-  .page-title {
-    font-size: 26px;
-  }
-  .page-subtitle {
-    font-size: 13px;
-  }
-  .chart-box {
-    height: 300px;
-  }
-  .chart-box-lg {
-    height: 340px;
-  }
-  .table-title {
-    font-size: 17px;
-  }
-  .data-table {
-    font-size: 12px;
-  }
-  .data-table thead th,
-  .data-table tbody td {
-    padding: 8px 6px;
-  }
-  .th-tier {
-    min-width: 150px;
-  }
-  .city-tag {
-    font-size: 12px;
-    padding: 2px 6px;
-  }
-  /* 数字卡 + 城市榜两列并排，6 张卡不再竖排一长条 */
-  .kpi-grid {
-    grid-template-columns: repeat(2, 1fr);
-    column-gap: 20px;
-  }
-  .kpi-card {
-    border-right: none;
-    border-bottom: 1px solid var(--rule);
-    margin-right: 0;
-    padding: 14px 0;
-  }
+/* ========== 窄屏 ========== */
+@media (max-width: 680px) {
+  /* 分段按钮和标题抢一行会把标题挤成三行, 窄屏让按钮另起一行 */
+  .housing .card .hd { flex-direction: column; gap: 8px; }
+  .housing .card .hd h2 { flex: none; }
+  .housing .card .hd .seg { margin-left: 6px; }
+  .housing .chart.hm { height: 360px; }
+  .housing .chart.hy { height: 280px; }
+  .housing .yearbar { margin: 16px 2px 8px; }
+  .housing .tiles.c3 { gap: 8px; }
+  .housing .tiles.c3 .tile { padding: 10px; }
+  .housing .tiles.c3 .tile .v { font-size: 19px; }
+  .housing .rk li { font-size: 12px; gap: 4px; }
+  .housing .data-table { font-size: 12px; }
+  .housing .data-table thead th,
+  .housing .data-table tbody td { padding: 7px 6px; }
+  .housing .th-tier { min-width: 150px; }
+  .housing .data-table { --mw: 42px; --tw: 52px; }
+  .housing .city-tag { font-size: 12px; padding: 2px 6px; }
 }

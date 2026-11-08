@@ -1,5 +1,5 @@
 // 房价页图表的共享视觉语言，色值现读 theme.css 的变量。
-// 编辑型风格：无网格噪音、发丝线、衬线标题、灰阶 UI + 语义色。
+// 标题走卡片 h2(与其他几页一致)，图里只留坐标轴/图例；灰阶 UI + 语义色。
 import { vars } from "./theme";
 
 /** 图表配色。在 effect / 事件里调用(要等 theme.css 已加载)。 */
@@ -21,17 +21,6 @@ export function chartColors() {
   };
 }
 
-export const titleStyle = (C, text, size = 17) => ({
-  text,
-  left: 0,
-  textStyle: {
-    fontSize: size,
-    fontWeight: 600,
-    color: C.ink,
-    fontFamily: '"Songti SC", "Source Han Serif SC", Georgia, serif',
-  },
-});
-
 export const axisCommon = (C) => ({
   axisLine: { lineStyle: { color: C.rule } },
   axisTick: { lineStyle: { color: C.rule } },
@@ -44,5 +33,5 @@ export const tooltipCommon = (C) => ({
   borderColor: C.rule,
   borderWidth: 1,
   textStyle: { color: C.ink2, fontSize: 13 },
-  extraCssText: "box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-radius: 2px;",
+  extraCssText: "box-shadow: 0 4px 14px -4px rgba(17,24,39,0.12); border-radius: 8px;",
 });

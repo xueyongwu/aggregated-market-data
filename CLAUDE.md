@@ -95,8 +95,10 @@ ECharts 读不到 CSS 变量，建图的 effect 里用 `theme.js` 的 `vars()` /
 **`theme.css` 里同一个色值挂了两套变量名**（`--ink2` 和 `--ink-2`、`--grid` 和 `--rule`）：
 股票三页和房价页各自的 CSS 里有几十处引用，给别名比改两百处引用便宜。新代码统一用无连字符那套。
 
-**`housing.css` 的重置只能落在 `.page` 里。** 它原来是 `* { margin:0; padding:0 }` + `body{...}`，
-合并成单页应用后这份 CSS 全局加载，落到 `*` 上会把股票三页的间距一起清掉。
+**`housing.css` 的选择器一律挂在 `.housing` 下。** 这份 CSS 全局加载，写裸的 `*` / `body` / `table` 会改到另外几页
+（早前它带 `* { margin:0; padding:0 }`，就把股票三页的间距清掉过）。2026-11 房价页并入全站外壳：
+`.wrap` / `.card` / `.tile` / `.pick` / `.note` 都用 `theme.css` 的公用零件，图表标题从 ECharts `title` 挪到卡片 `h2`，
+`housing.css` 只剩本页独有的分段按钮 `.seg`、城市榜 `.rk` 和明细表。
 
 **echarts 按需引入**：从 `app/src/echarts.js` 导入，不要 `import * as echarts from "echarts"`（全量约 1MB）。
 用到新的图表类型或组件时，必须先在 `echarts.use([...])` 里注册 —— 漏注册时 echarts **不报错**，
