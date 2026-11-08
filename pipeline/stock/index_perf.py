@@ -80,7 +80,7 @@ def ths_close(symbol: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
     同一份数据(2026-08-20 收盘逐位一致: 微盘股 2082.254 / 可转债 2033.24), 换掉了。
     这两条没有备源: 只有同花顺自己编这两个指数。拉不到就走 main 里的 stale 降级。
     """
-    from pipeline.stock.median_trend import ths_date, ths_get  # 同花顺客户端在那边, 别重写一份
+    from pipeline.stock.ths import ths_date, ths_get  # 同花顺客户端共用一份, 别重写
 
     d = ths_get("/a-share-index/prices/historical", thscode=symbol, interval="1d",
                 start=int(start.timestamp() * 1000), end=int(end.timestamp() * 1000))

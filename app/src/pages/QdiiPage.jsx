@@ -13,6 +13,7 @@ import { Pct, useSort } from "../table";
 import Pull from "../pull";
 import { NQ_OVERNIGHT as NQ } from "../data/nq_data";
 import { QDII_PREMIUM as QP } from "../data/qdii_premium_data";
+import { US_PERF as U } from "../data/us_data";
 
 const GL = MOBILE ? 46 : 56; // 图表左边距, 窄屏收紧
 // NQ 分时窄屏不出 tooltip: 它就在页顶, 手指一碰就弹框盖住曲线, 还跟下拉刷新抢手势;
@@ -281,7 +282,7 @@ function NqCard({ theme, tick }) {
 // USETF 是美股 ETF(QQQ/QQQM), 第四项 us 标记 —— 做对照用, 同一个指数看「不隔 QDII 这层
 // 要多少钱、拿到多少收益」。**两张表从名单到轮询都是分开的**:
 //   · 计价币种不同 —— QDII 是 CNY、这两只是 USD, 现价/成交额并排就是在骗人, 收益列的差额
-//     里也含 USD/CNY 变动(同 IndexPage 里恒指与 A股指数同图的口径妥协);
+//     里也含 USD/CNY 变动(同 A股页指数排名里恒指与 A股指数同图的口径妥协);
 //   · 溢价率和规模这两列美股压根没有(见下), 摆一起就是两整列 —— ;
 //   · 极差是「12 只 QDII 之间的离散度」, 混进美元行会虚高;
 //   · 交易时段不重叠 —— 各自只在自己开市时轮询(见 useSnap), 合成一个请求就得按并集刷,
@@ -659,6 +660,48 @@ function UsTable({ tick }) {
           </tbody>
         </table>
       </div>
+      {/* 卡内一句话: 与上面 QDII 表的差额是哪几样东西凑出来的。具体数就在表里, 不展开也不写死数值 */}
+      <p className="note">
+        QDII 与美股 ETF 的收益率差异受<b>汇率</b>、<b>费率</b>、<b>溢价率</b>、
+        <b>跟踪误差</b>等影响。
+      </p>
+    </div>
+  );
+}
+
+// 指数 + 七巨头的日/周/月/年涨跌幅, 数据是 us_perf.py 每天收盘后出的 us_data.js(静态, 不轮询)。
+// 原在美股页(UsPage, 已删), 挪到这里放页底。
+const PERF_COLS = [
+  ["name", "标的"], ["close", "收盘"], ["day", "涨跌幅"],
+  ["wtd", "本周"], ["mtd", "本月"], ["ytd", "今年以来"],
+];
+
+function PerfCard() {
+  const { sorted, th } = useSort(U.items, "ytd");
+  return (
+    <div className="card">
+      <h2>
+        纳指100 · 标普500 · 美股七巨头 <span>· 截至 {U.items[0].date}</span>
+      </h2>
+      <div className="tWrap">
+        <table className="dt">
+          <thead>
+            <tr>{PERF_COLS.map(([k, l]) => th(k, l))}</tr>
+          </thead>
+          <tbody>
+            {sorted.map((r) => (
+              <tr key={r.name} className={["纳斯达克100", "标普500"].includes(r.name) ? "hl" : ""}>
+                <td className="nm">{r.name}</td>
+                <td>{r.close.toFixed(2)}</td>
+                <Pct v={r.day} />
+                <Pct v={r.wtd} />
+                <Pct v={r.mtd} />
+                <Pct v={r.ytd} />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -676,11 +719,7 @@ export default function QdiiPage() {
       <CnTable tick={tick} />
       <PremCard theme={theme} />
       <UsTable tick={tick} />
-      {/* 页尾一句话: 两张表差额是哪几样东西凑出来的。具体数就在表里, 不展开也不写死数值 */}
-      <p className="note">
-        QDII 与美股 ETF 的收益率差异受<b>汇率</b>、<b>费率</b>、<b>溢价率</b>、
-        <b>跟踪误差</b>等影响。
-      </p>
+      <PerfCard />
     </div>
   );
 }

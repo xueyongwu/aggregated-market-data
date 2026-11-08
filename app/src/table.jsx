@@ -1,11 +1,11 @@
-// 行情表共用零件（纳指QDII / 美股 / 加密三页）。
+// 行情表零件（目前只有纳指QDII 页在用，留成单独文件是为了以后别的表格页直接复用）。
 //
-// Pct 是组件、fmt/useSort 不是，同文件会退化 fast refresh（编辑本文件时整树重挂）。
+// Pct 是组件、useSort 不是，同文件会退化 fast refresh（编辑本文件时整树重挂）。
 // 三十来行、改动极少，为它拆两个文件再让每页多一行 import 不划算。
 /* eslint-disable react-refresh/only-export-components */
 import { useMemo, useState } from "react";
 
-export const fmt = (v) => (v >= 0 ? "+" : "") + v.toFixed(2) + "%";
+const fmt = (v) => (v >= 0 ? "+" : "") + v.toFixed(2) + "%";
 
 /** 涨跌幅单元格。缺值（旧格式、基准还没异步到）给 — 而不是渲染成 NaN。 */
 export const Pct = ({ v }) =>

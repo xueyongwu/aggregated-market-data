@@ -2,8 +2,8 @@ name: daily-update
 
 on:
   schedule:
-    - cron: "30 8 * * 1-5"  # UTC 08:30 = 北京 16:30; A 股收盘后腾讯快照即时可用, 且港股 16:00 已收盘
-    - cron: "0 10 * * 1-5"  # UTC 10:00 = 北京 18:00, 兜底: 16:30 若落到 baostock 回退分支则当时无数据(~17:30 才出)
+    - cron: "30 8 * * 1-5"  # UTC 08:30 = 北京 16:30; A 股已收盘, 且港股 16:00 已收盘(index_perf 的恒指两条)
+    - cron: "0 10 * * 1-5"  # UTC 10:00 = 北京 18:00, 兜底重试; 国债活跃券(银行间 17:00 收)以这趟为准
   workflow_dispatch:          # 手动触发
 
 permissions:
@@ -18,26 +18,20 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      # 这两份不进 git(每工作日被全量重写提交 2~3 次, 一年 ~1.3G 进 .git), 走 cache。
-      # key 带 run_id 保证每次都存新的, restore-keys 前缀取最近一份;
-      # 前缀带版本号: 股票池口径变了(2026-08 加北交所)就 +1, 让旧缓存自然失效重建,
-      # 否则 --update 只往老缓存里追加当天, 序列前半段还是没北交所的窄口径。
-      # nq_night.yml 用同一 prefix, 它只读 daily_pctchg、只写 nq_min, 存回去不会回退。
-      # 未命中不是故障: median_trend 无缓存自动走全量重拉(同花顺 dump, ~1 分钟),
-      # nq_min 缺了断一两天曲线, 次日 5:00 那趟补回。
+      # nq_min 不进 git(每工作日被全量重写提交 2~3 次), 走 cache。
+      # key 带 run_id 保证每次都存新的, restore-keys 前缀取最近一份; nq_night.yml 用同一 prefix。
+      # 未命中不是故障: nq_min 缺了断一两天曲线, 次日 5:00 那趟补回。
       - uses: actions/cache@v4
         with:
-          path: |
-            cache/daily_pctchg.parquet
-            cache/nq_min.parquet
+          path: cache/nq_min.parquet
           key: stock-cache-v2-${{ github.run_id }}
           restore-keys: stock-cache-v2-
-      - run: pip install baostock pandas pyarrow akshare requests  # requests 是腾讯快照主源用的, 别靠 akshare 传递依赖
-      - run: python -m pipeline.stock.median_trend --update
+      - run: pip install pandas pyarrow akshare requests  # requests 各脚本主源都在用, 别靠 akshare 传递依赖
+      # 排在 nq_overnight 前面: turnover_data.js 的日期兼任 A 股交易日历
+      - run: python -m pipeline.stock.turnover_margin
+        continue-on-error: true  # 同花顺/东财偶发失败不阻断, 页面用旧数据(各写各的, 一个挂了另一个照写)
         env:
-          # 股票池含北交所, 只有同花顺给; 历史/补缺口也走它的全市场 dump。
-          # 没这个 key 会降级到 baostock 逐股(慢 10 倍, 且少 ~340 只北交所)。
-          HITHINK_FINANCE_API_KEY: ${{ secrets.HITHINK_FINANCE_API_KEY }}
+          HITHINK_FINANCE_API_KEY: ${{ secrets.HITHINK_FINANCE_API_KEY }}  # 成交额走同花顺
       - run: python -m pipeline.stock.index_perf
         continue-on-error: true  # 指数源(新浪/中证/同花顺)偶发失败不阻断, 页面用旧数据
         env:
@@ -54,12 +48,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add app/src/data/median_data.js app/src/data/turnover_data.js \
-                  app/src/data/margin_data.js \
+          git add app/src/data/turnover_data.js app/src/data/margin_data.js \
                   app/src/data/idx_data.js \
                   app/src/data/nq_data.js app/src/data/bond_data.js \
-                  app/src/data/qdii_premium_data.js \
-                  cache/st_codes.json
+                  app/src/data/qdii_premium_data.js
           git diff --cached --quiet && exit 0
           git commit -m "chore: daily data update $(date -u +%F)"
           git pull --rebase

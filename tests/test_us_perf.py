@@ -1,7 +1,7 @@
 """us_perf.pct() 基准选取自检(离线, 合成日线)。跑: python -m tests.test_us_perf"""
 import pandas as pd
 
-from pipeline.stock.us_perf import parse_income, parse_surprise, pct, perf, tech_split
+from pipeline.stock.us_perf import pct, perf
 
 
 def series(pairs):
@@ -46,114 +46,18 @@ def test_no_base_raises():
     raise AssertionError("缺基准时应抛 RuntimeError")
 
 
-def test_perf_new_listing():
-    # 年内新上市(权重表 strict=False): 缺上年末基准只空今年以来那列, 当日/本周/本月照算
+def test_perf_raises_without_base():
+    # 年内新上市(缺上年末基准): 整只抛错, 由 main() 让整份不写, 好过拿错基准
     s = series([("2026-07-15", 50.0), ("2026-09-30", 100.0), ("2026-10-02", 110.0)])
-    p = perf(s, strict=False)
-    assert p["ytd"] is None and p["day"] == 10.0 and p["mtd"] == 10.0 and p["date"] == "2026-10-02"
     try:
         perf(s)
     except RuntimeError:
         return
-    raise AssertionError("strict 默认应对缺基准抛错")
-
-
-def rows(*pairs):
-    return [(str(i), "", code, w) for i, (code, w) in enumerate(pairs, 1)]
-
-
-def test_tech_split_residual():
-    # 已归类 20 + 未收录的 GOOGL(非科技口径, 不该计入) -> 其他科技 = 53.6 - 20
-    out = tech_split(rows(("NVDA", "12"), ("MSFT", "5"), ("AAPL", "3"), ("GOOGL", "9")), 53.6)
-    assert {x["name"]: x["weight"] for x in out} == {
-        "半导体": 12.0, "软件": 5.0, "硬件与网络设备": 3.0, "其他科技": 33.6}
-    assert round(sum(x["weight"] for x in out), 2) == 53.6  # 合计必须等于板块总权重
-    assert [x["name"] for x in out][:3] == ["半导体", "软件", "硬件与网络设备"]  # 按权重降序
-
-
-def test_tech_split_no_negative_rest():
-    # 归类结果超过板块总权重(分类口径漂了) -> 不写负数的"其他科技"
-    out = tech_split(rows(("NVDA", "60")), 53.6)
-    assert [x["name"] for x in out] == ["半导体"]
-
-
-def surprise_rows(*triples):
-    return {"earningsSurpriseTable": {"rows": [
-        {"fiscalQtrEnd": q, "dateReported": d, "eps": e, "consensusForecast": c,
-         "percentageSurprise": s} for q, d, e, c, s in triples]}}
-
-
-def test_surprise_picks_latest():
-    # 不假设上游排序: 取 dateReported 最新那行(4/30 那条), 而非表里第一行
-    got = parse_surprise(surprise_rows(
-        ("Dec 2025", "1/29/2026", 2.84, "2.65", "7.17"),
-        ("Mar 2026", "4/30/2026", 2.01, "1.92", "4.69"),
-        ("Sep 2025", "10/30/2025", 1.85, "1.73", "6.94"),
-    ))
-    assert got == {"qtr": "Mar 2026", "date": "2026-04-30", "eps": 2.01, "est": 1.92}
-
-
-def test_surprise_empty_raises():
-    # 上游给 data:null(代码不存在/无历史) -> 抛错, 由 earnings() 跳过该行
-    for bad in (None, {}, {"earningsSurpriseTable": {"rows": []}}):
-        try:
-            parse_surprise(bad)
-        except RuntimeError:
-            continue
-        raise AssertionError(f"空表应抛 RuntimeError: {bad}")
-
-
-def income(*rows):
-    """(报告期, 项目名, 金额, 同比) -> 东财响应壳子。"""
-    return {"result": {"data": [{"REPORT_DATE": d, "ITEM_NAME": n, "AMOUNT": a,
-                                 "YOY_RATIO": y, "REPORT_TYPE": "单季报"} for d, n, a, y in rows]}}
-
-
-Q3 = ("2026-06-27 00:00:00", "主营收入", 109417000000, 16.3567)
-Q3N = ("2026-06-27 00:00:00", "归属于普通股股东净利润", 29789000000, 27.1187)
-
-
-def test_income_ok():
-    # 只取最新报告期那一块, 营收与净利各带自己的同比; 更早的季与无关项目都不能混进来
-    got = parse_income(income(Q3, ("2026-06-27 00:00:00", "毛利", 54770000000, 25.28), Q3N,
-                              ("2026-03-28 00:00:00", "主营收入", 111184000000, 16.6)), "Jun 2026")
-    assert got == {"rev": 109417000000.0, "revYoy": 16.36,
-                   "ni": 29789000000.0, "niYoy": 27.12}
-
-
-def test_income_quarter_spills_next_month():
-    # 13 周财季越到下月初(AVGO 5/3 结束, 纳斯达克标 Apr 2026)仍算同一季, 不能按同月比
-    got = parse_income(income(("2026-05-03 00:00:00", "主营收入", 22187000000, 47.87),
-                              ("2026-05-03 00:00:00", "归属于普通股股东净利润", 9307000000, 87.51)),
-                       "Apr 2026")
-    assert got["rev"] == 22187000000.0
-
-
-def test_income_missing_item_raises():
-    # 只有营收没有净利: 整行留空, 好过表里出现一半有一半没有的行
-    try:
-        parse_income(income(Q3), "Jun 2026")
-    except RuntimeError:
-        return
-    raise AssertionError("项目缺失应抛 RuntimeError")
-
-
-def test_income_quarter_mismatch():
-    # 东财滞后一期: 宁可这行留空, 也不能把上一季的数摆在本季公布日旁边
-    for bad in (income(("2026-03-28 00:00:00", "主营收入", 111184000000, 16.6)), income(), {}):
-        try:
-            parse_income(bad, "Jun 2026")
-        except RuntimeError:
-            continue
-        raise AssertionError(f"对不上财季应抛 RuntimeError: {bad}")
+    raise AssertionError("缺基准时 perf 应抛 RuntimeError")
 
 
 if __name__ == "__main__":
     for f in (test_week_base, test_month_base, test_year_base, test_prev_close, test_no_base_raises,
-              test_perf_new_listing,
-              test_tech_split_residual, test_tech_split_no_negative_rest,
-              test_surprise_picks_latest, test_surprise_empty_raises,
-              test_income_ok, test_income_quarter_spills_next_month,
-              test_income_missing_item_raises, test_income_quarter_mismatch):
+              test_perf_raises_without_base):
         f()
         print(f"ok  {f.__name__}")

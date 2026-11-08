@@ -84,7 +84,7 @@ def sanity_check(out: dict, old: dict | None):
 
 
 def load(out) -> dict | None:
-    """上次导出的整份历史(同 us_perf.last 的切法); 没有/坏了就当全量。"""
+    """上次导出的整份历史(同 index_perf.last_good 的切法); 没有/坏了就当全量。"""
     try:
         t = out.read_text(encoding="utf-8")
         return json.loads(t[t.index("=") + 1:t.rindex(";")])

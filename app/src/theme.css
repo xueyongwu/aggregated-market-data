@@ -167,7 +167,7 @@ table,
 }
 
 /* 860 而不是别处那个 680：7 个标签横排要 ~780px，加深浅色开关和左右内边距，
- * 815 以下横条就把页面顶出横向滚动条了(6 项时是 780 那组数)。
+ * 815 以下横条就把页面顶出横向滚动条了(6 项时是 780 那组数, 现在只剩 5 项, 断点没跟着收)。
  * 加/改导航项要重测。页面其余部分的窄屏断点仍是 680。 */
 @media (max-width: 860px) {
   .nav-in {
@@ -298,11 +298,8 @@ table,
   gap: 12px;
   margin: 18px 0 24px;
 }
-/* 5 块的页面(A股趋势)排成 5 列, 不然第 5 块自己占一整行 */
-.tiles:has(> :nth-child(5)) { grid-template-columns: repeat(5, 1fr); }
 @media (max-width: 680px) {
-  .tiles,
-  .tiles:has(> :nth-child(5)) {
+  .tiles {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -343,11 +340,6 @@ table,
 }
 .tile .u i::before {
   content: " · ";
-}
-.tile .sep {
-  color: var(--muted);
-  font-weight: 400;
-  margin: 0 5px;
 }
 .pos {
   color: var(--up);
@@ -401,9 +393,6 @@ code {
   padding: 2px 6px;
   border-radius: 5px;
   color: var(--ink2);
-}
-.stale {
-  opacity: 0.55;
 }
 
 /* ========== 定投页(信息密度高: 两组瓦片 + 图 + 60 行明细, 通用间距在这页太散) ========== */
@@ -584,13 +573,6 @@ table.dt {
   font-size: 11px;
   margin-left: 6px;
 }
-.dt .rk {
-  color: var(--muted);
-  font-size: 11px;
-  margin-right: 8px;
-  display: inline-block;
-  min-width: 12px;
-}
 /* 高亮行(自选 / 指数)的底色是半透明, 首列 sticky 要叠在 surface 上凑成不透明 */
 .dt tbody tr.hl {
   background: rgba(47, 116, 208, 0.1);
@@ -612,17 +594,13 @@ table.dt {
 
 /* ========== 图表容器高度 ========== */
 .chart.main { height: 360px; }
-.chart.cum  { height: 240px; }
 .chart.amt  { height: 260px; }
 .chart.idx  { height: 500px; }
-.chart.kline { height: 380px; }
 .chart.intraday { height: 300px; }
 @media (max-width: 680px) {
   .chart.main { height: 280px; }
-  .chart.cum  { height: 200px; }
   .chart.amt  { height: 220px; }
   .chart.idx  { height: 460px; }
-  .chart.kline { height: 300px; }
   .chart.intraday { height: 260px; }
 }
 
@@ -663,7 +641,7 @@ table.dt {
   }
 }
 
-/* ========== 区间筛选下拉(A股趋势页成交额 / 两融那两张图) ========== */
+/* ========== 区间筛选下拉(A股页成交额 / 两融那两张图) ========== */
 /* 区间下拉: 绝对定位到卡片右上角。标题和副标题是同一段行内文本, 把 h2 改成 flex
    会把它俩拆成两个 flex item 断掉行内流, 所以宁可给 h2 留出右边距让开这个框 */
 .card:has(.pick) { position: relative; }
@@ -727,31 +705,3 @@ table.dt {
 .pull.ok, .pull.spin { color: var(--blue); }
 .pull.spin svg { animation: nqspin 0.8s linear infinite; }
 
-/* ========== 美股页表格的额外零件 ========== */
-/* 同比: 挂在金额下面的第二行, 小一号 */
-.dt .yo { display: block; font-size: 11px; margin-top: 2px; }
-/* 双份额(谷歌 A/C)的涨跌幅: 两行同字号, 块内左对齐让 A/C 前缀对齐, 块本身仍随列靠右 */
-.dt .ac { display: inline-block; text-align: left; }
-.dt .ac span { display: block; }
-.dt .ac span + span { margin-top: 2px; }
-/* 权重条: 纯 CSS, 宽度按最大值归一, 不值得为它上图表库 */
-.dt td.bar { width: 55%; min-width: 120px; }
-/* min-width: 尾部行业只有 0.2%, 归一后宽度不足 1px 会整条看不见 */
-.dt td.bar i { display: block; height: 8px; min-width: 3px; border-radius: 4px; background: var(--blue); }
-/* 可展开行(行业表里的科技): 子行缩进 + 默认收起 */
-.dt tr.exp { cursor: pointer; user-select: none; }
-.dt tr.exp:hover td { color: var(--ink); }
-/* 箭头用 CSS 三角: ▸ 这类字形各系统粗细差太多, 小字号下几乎看不见 */
-.dt .ar {
-  display: inline-block; width: 0; height: 0; margin-right: 7px;
-  vertical-align: middle; margin-bottom: 2px;  /* 中文字比 CSS 的 middle 基准高一点, 抬 2px 才真居中 */
-  border-left: 5px solid var(--ink2);
-  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
-  transition: transform 0.15s;
-}
-.dt tbody.open .ar { transform: rotate(90deg); }
-.dt tr.sub { display: none; }
-.dt tbody.open tr.sub { display: table-row; }
-.dt tr.sub td { color: var(--muted); font-size: 12px; }
-.dt tr.sub td:first-child { padding-left: 24px; }
-.dt tr.sub td.bar i { opacity: 0.5; }

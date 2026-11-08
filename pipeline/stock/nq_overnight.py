@@ -4,7 +4,8 @@
 每日拉取按时间戳去重累积进 cache/nq_min.parquet, 攒出跨日窗口。
 冷启动首日缺前一日15:00基准, 次个交易日起出数。CME休市日(美国假日)自动跳过。
 
-A股交易日历直接取 cache/daily_pctchg.parquet 的日期列, 不额外调接口。
+A股交易日历直接取 app/src/data/turnover_data.js 的日期列(沪深成交额有数的日子就是交易日,
+已入库, 不靠 actions/cache), 不额外调接口。
 
 用法: python -m pipeline.stock.nq_overnight
 输出: cache/nq_min.parquet (dt, price)
@@ -50,8 +51,9 @@ def fetch_bars(tries: int = 3) -> pd.DataFrame:
 
 
 def trading_days() -> list[pd.Timestamp]:
-    d = pd.read_parquet(CACHE / "daily_pctchg.parquet", columns=["date"])["date"].unique()
-    return sorted(pd.to_datetime(d))
+    """A 股交易日(升序)。turnover_margin 未收盘不写当日, 所以盘中这里不会提前出现今天。"""
+    t = (WEB_DATA / "turnover_data.js").read_text(encoding="utf-8")
+    return sorted(pd.to_datetime(json.loads(t[t.index("=") + 1:t.rindex(";")])["dates"]))
 
 
 def overnight(bars: pd.DataFrame, tdays: list[pd.Timestamp]) -> list[dict]:
@@ -71,7 +73,7 @@ def overnight(bars: pd.DataFrame, tdays: list[pd.Timestamp]) -> list[dict]:
 
     # 半程点: 上一A股收盘15:00 -> 最新bar, 下一交易日9:30后被完整点替代
     cut = tdays[-1] + pd.Timedelta(hours=15)
-    # 滚动: daily_pctchg 未含当日(收盘后~17:30才出), 但 NQ 已越过更晚的A股收盘;
+    # 滚动: 交易日历未含当日(成交额 CI 收盘后才写), 但 NQ 已越过更晚的A股收盘;
     # 取已越过的最近工作日15:00(其后仍有bar)为新周期基准, 15:00即换窗不等CI。
     crossed = [ts for ts in s.index
                if ts > cut and ts.hour == 15 and ts.minute == 0 and ts.weekday() < 5]

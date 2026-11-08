@@ -16,9 +16,10 @@ PY=.venv/bin/python
 what=${1:-all}
 
 run_stock() {
-  # 股票池含北交所, 只有同花顺给; 没 key 会静默降级到 baostock(慢 10 倍, 少 ~340 只)
-  [ -n "${HITHINK_FINANCE_API_KEY:-}" ] || echo "⚠️  没有 HITHINK_FINANCE_API_KEY，A股中位数会降级到 baostock（无北交所）"
-  echo "▶ A股中位数..."   ; "$PY" -m pipeline.stock.median_trend --update
+  # 成交额 / 微盘股·可转债两条指数走同花顺; 没 key 这几条拉不到, 页面留上次的
+  [ -n "${HITHINK_FINANCE_API_KEY:-}" ] || echo "⚠️  没有 HITHINK_FINANCE_API_KEY，成交额与微盘股/可转债指数会跳过"
+  # 先跑它: turnover_data.js 的日期兼任 NQ 隔夜的 A 股交易日历
+  echo "▶ 成交额/两融..."  ; "$PY" -m pipeline.stock.turnover_margin       || echo "  (部分跳过)"
   echo "▶ 宽基指数..."     ; "$PY" -m pipeline.stock.index_perf            || echo "  (跳过)"
   echo "▶ 国债活跃券..."   ; "$PY" -m pipeline.stock.bond_rate             || echo "  (跳过)"
   echo "▶ NQ 隔夜..."      ; "$PY" -m pipeline.stock.nq_overnight          || echo "  (跳过)"

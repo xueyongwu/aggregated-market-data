@@ -1,9 +1,9 @@
-// A股趋势：4 张统计瓦片 + 日中位数柱 + 累计中位数线 + 全市场成交额 + 两融余额。
+// A股：指数今年以来涨跌幅排名 + 全市场成交额 + 两融余额(后两张各带一排区间筛选)。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { echarts } from "../echarts";
 import { useTheme, vars } from "../theme";
-import { COLORS, MOBILE, fmtP, since, tip, xDate, yPct } from "../chartBase";
-import { MEDIAN_DATA as D } from "../data/median_data";
+import { COLORS, MOBILE, fmtP, since, tip, xDate } from "../chartBase";
+import { INDEX_YTD as IX } from "../data/idx_data";
 import { TURNOVER } from "../data/turnover_data";
 import { MARGIN } from "../data/margin_data";
 
@@ -30,29 +30,106 @@ const MA20 = (() => {
   });
 })();
 
-const sign = (v) => (v >= 0 ? "pos" : "neg");
+// 宽基/特色/港股 15 个指数今年以来涨跌幅排名条形图(数据 index_perf.py -> idx_data.js)。
+// 原是独立的「宽基指数」页(IndexPage, 已删), 2026-11 挪到这页最上面。
+function IdxCard({ theme }) {
+  const box = useRef(null);
 
-// 今年以来切片; 累计从 0 起重算
-function slice() {
-  const cut = D.dates[D.dates.length - 1].slice(0, 4) + "-01-01";
-  const i0 = D.dates.findIndex((d) => d >= cut);
-  const s = i0 < 0 ? D.dates.length : i0;
-  const median = D.median.slice(s);
-  let run = 0;
-  const cum = median.map((v) => +(run += v).toFixed(3));
-  return {
-    dates: D.dates.slice(s),
-    median,
-    cum,
-    count: D.count.slice(s),
-    upRatio: D.upRatio.slice(s),
-  };
+  useEffect(() => {
+    if (!IX?.items?.length) return;
+    const C = vars(...COLORS);
+    const items = [...IX.items].reverse(); // ECharts 类目轴自下而上, 反转让涨幅最大在顶
+    // 轴按两侧绝对值最大的那根收紧(对称), 不让 echarts 自动圆到 ±30% 白留一大截
+    const cap = Math.max(...items.map((i) => Math.abs(i.ytd)));
+    // 柱长≥半轴40%(约一个标签宽)才放柱内 —— 轴收紧后最长那根顶到 grid 边,
+    // 标签外置会被裁掉(负向的还会压到左边类目名上), 所以这条不再只对移动端生效
+    const inside = (v) => Math.abs(v) >= 0.4 * cap;
+    const m = echarts.init(box.current, null, { renderer: "canvas" });
+    m.setOption({
+      grid: { left: 8, right: 8, top: 6, bottom: 24, containLabel: true },
+      tooltip: {
+        trigger: "item",
+        confine: true,
+        backgroundColor: C.tip,
+        borderColor: C.grid,
+        borderWidth: 1,
+        textStyle: { color: C.ink, fontSize: 12 },
+        formatter: (p) => {
+          const it = items[p.dataIndex];
+          return (
+            `${it.name}<br>今年以来 <b>${fmtP(it.ytd)}</b><br>收盘 ${it.close} · ${it.date}` +
+            (it.stale ? `<br><span style="color:${C.muted}">数据源失败，沿用上次</span>` : "")
+          );
+        },
+      },
+      xAxis: {
+        type: "value",
+        min: -cap,
+        max: cap, // 设了 min/max 后 boundaryGap 失效, 两端一点不留
+        axisLabel: { color: C.muted, fontSize: 11, formatter: "{value}%" },
+        splitLine: { lineStyle: { color: C.grid } },
+        axisLine: { show: false },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: "category",
+        data: items.map((i) => i.name),
+        axisLabel: { color: C.ink2, fontSize: 12 },
+        axisLine: { show: false },
+        axisTick: { show: false },
+      },
+      series: [
+        {
+          type: "bar",
+          barMaxWidth: 14,
+          data: items.map((i) => ({
+            value: i.ytd,
+            label: {
+              show: true,
+              fontSize: 11,
+              formatter: () => fmtP(i.ytd),
+              position: inside(i.ytd)
+                ? i.ytd >= 0 ? "insideRight" : "insideLeft"
+                : i.ytd >= 0 ? "right" : "left",
+              color: inside(i.ytd) ? "#fff" : C.ink2,
+            },
+            itemStyle: {
+              color: i.ytd >= 0 ? C.up : C.down,
+              opacity: i.stale ? 0.35 : 1, // stale = 该源今日失败, 沿用上次
+              borderRadius: i.ytd >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4],
+            },
+          })),
+          markLine: {
+            silent: true,
+            symbol: "none",
+            lineStyle: { color: C.baseline },
+            data: [{ xAxis: 0 }],
+            label: { show: false },
+          },
+        },
+      ],
+    });
+    const onResize = () => m.resize();
+    addEventListener("resize", onResize);
+    return () => {
+      removeEventListener("resize", onResize);
+      m.dispose();
+    };
+  }, [theme]);
+
+  if (!IX?.items?.length) return null;
+  return (
+    <div className="card">
+      <h2>
+        今年以来涨跌幅 <span className="dot">基准为上年最后交易日收盘 · 更新于 {IX.updated}</span>
+      </h2>
+      <div ref={box} className="chart idx" />
+    </div>
+  );
 }
 
 export default function AStockPage() {
   const { theme } = useTheme();
-  const mainRef = useRef(null);
-  const cumRef = useRef(null);
   const amtRef = useRef(null);
   const mgnRef = useRef(null);
   const [range, setRange] = useState("ytd");
@@ -65,84 +142,8 @@ export default function AStockPage() {
     const i = since(MARGIN.dates, mRange);
     return { dates: MARGIN.dates.slice(i), bal: MARGIN.bal.slice(i), ratio: MARGIN.ratio.slice(i) };
   }, [mRange]);
-  const V = useMemo(() => slice(), []);
 
-  useEffect(() => {
-    const C = vars(...COLORS);
-    const mMain = echarts.init(mainRef.current, null, { renderer: "canvas" });
-    mMain.setOption({
-      grid: { left: GL, right: MOBILE ? 12 : 20, top: 24, bottom: 36 },
-      tooltip: {
-        ...tip(C),
-        formatter: (p) => {
-          const i = p[0].dataIndex;
-          return (
-            `${V.dates[i]}<br>日中位数 <b>${fmtP(V.median[i])}</b><br>` +
-            `上涨占比 ${V.upRatio[i].toFixed(1)}%<br>样本 ${V.count[i]} 股`
-          );
-        },
-      },
-      xAxis: { ...xDate(C), boundaryGap: true, data: V.dates },
-      yAxis: yPct(C),
-      series: [
-        {
-          type: "bar",
-          barMaxWidth: 6,
-          data: V.median,
-          itemStyle: { color: (p) => (p.value >= 0 ? C.up : C.down), borderRadius: 1 },
-          markLine: {
-            silent: true,
-            symbol: "none",
-            lineStyle: { color: C.baseline },
-            data: [{ yAxis: 0 }],
-            label: { show: false },
-          },
-        },
-      ],
-    });
-
-    const mCum = echarts.init(cumRef.current, null, { renderer: "canvas" });
-    mCum.setOption({
-      grid: { left: GL, right: MOBILE ? 12 : 20, top: 20, bottom: 28 },
-      tooltip: {
-        ...tip(C),
-        formatter: (p) => `${V.dates[p[0].dataIndex]}<br>累计 <b>${fmtP(V.cum[p[0].dataIndex])}</b>`,
-      },
-      xAxis: { ...xDate(C), data: V.dates },
-      yAxis: yPct(C),
-      series: [
-        {
-          type: "line",
-          showSymbol: false,
-          data: V.cum,
-          lineStyle: { width: 2, color: C.blue },
-          areaStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: "rgba(57,135,229,.28)" },
-              { offset: 1, color: "rgba(57,135,229,0)" },
-            ]),
-          },
-          markLine: {
-            silent: true,
-            symbol: "none",
-            lineStyle: { color: C.baseline },
-            data: [{ yAxis: 0 }],
-            label: { show: false },
-          },
-        },
-      ],
-    });
-
-    const onResize = () => { mMain.resize(); mCum.resize(); };
-    addEventListener("resize", onResize);
-    return () => {
-      removeEventListener("resize", onResize);
-      mMain.dispose();
-      mCum.dispose();
-    };
-  }, [V, theme]);
-
-  // 成交额单独一个 effect: 换区间只重建这张图。日频 1200 点, sampling lttb 抽稀;
+  // 成交额、两融各一个 effect: 换区间只重建那一张图。日频 1200 点, sampling lttb 抽稀;
   // 横轴跨 5 年, xDate 默认的 MM-DD 看不出年份, 改显年月。
   useEffect(() => {
     const C = vars(...COLORS);
@@ -200,7 +201,7 @@ export default function AStockPage() {
     };
   }, [A, theme]);
 
-  // 两融同理单独一个 effect。左轴余额右轴占比都从 0 起: 两轴各自 scale 会把「余额创
+  // 两融: 左轴余额右轴占比都从 0 起: 两轴各自 scale 会把「余额创
   // 新高但占比没跟上」这唯一值钱的信息抹平; 右轴钉死 5%(2015 峰值 4.70%)让两条线错开,
   // 不然万亿和 % 两个数量级撞在一起, 线会叠成一根。
   useEffect(() => {
@@ -269,68 +270,9 @@ export default function AStockPage() {
     };
   }, [M, theme]);
 
-  const last = V.dates.length - 1;
-  const L = D.latest || {};
-  const t = TURNOVER.dates.length - 1;
-
   return (
     <div className="wrap">
-      <header>
-        <div className="sub">更新于 {D.updated}</div>
-      </header>
-
-      <div className="tiles">
-        <div className="tile">
-          <span className="k">最新日中位数</span>
-          <span className={`v ${sign(V.median[last])}`}>{fmtP(V.median[last])}</span>
-          <span className="u">{V.dates[last]}</span>
-        </div>
-        <div className="tile">
-          <span className="k">累计中位数</span>
-          <span className={`v ${sign(V.cum[last])}`}>{fmtP(V.cum[last])}</span>
-          <span className="u">今年累加</span>
-        </div>
-        <div className="tile">
-          <span className="k">今日涨跌分布</span>
-          <span className="v">
-            <span className="pos">{L.up ?? "–"}</span>
-            <span className="sep">/</span>
-            {L.flat ?? "–"}
-            <span className="sep">/</span>
-            <span className="neg">{L.down ?? "–"}</span>
-          </span>
-          <span className="u">上涨 / 平 / 下跌</span>
-        </div>
-        <div className="tile">
-          <span className="k">今日涨跌停</span>
-          <span className="v">
-            <span className="pos">{L.limitUp ?? "–"}</span>
-            <span className="sep">/</span>
-            <span className="neg">{L.limitDown ?? "–"}</span>
-          </span>
-          <span className="u">涨停 / 跌停 (剔ST)</span>
-        </div>
-        <div className="tile">
-          <span className="k">今日成交额</span>
-          <span className="v">{TURNOVER.amt[t].toFixed(2)}<small>万亿</small></span>
-          <span className="u">20 日均 {MA20[t].toFixed(2)} 万亿</span>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2>
-          日中位数 <span className="dot">全 A 股(沪深 + 北交所)当日涨跌幅的中位数，剔停牌，红涨绿跌</span>
-        </h2>
-        <div ref={mainRef} className="chart main" />
-      </div>
-
-      <div className="card">
-        <h2>
-          累计中位数 <span className="dot">日中位数逐日累加，反映长期资金冷暖</span>
-        </h2>
-        <div ref={cumRef} className="chart cum" />
-      </div>
-
+      <IdxCard theme={theme} />
       <div className="card">
         <h2>
           全市场成交额 <span className="dot">
