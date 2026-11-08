@@ -6,9 +6,9 @@
 // 8s 一轮的轮询下毫无收益 —— 图表本来就是 setOption 增量合并的。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { echarts } from "../echarts";
-import { useTheme, vars } from "../theme";
+import { vars } from "../theme";
 import { aOpen, jsonp, poll, usOpen } from "../jsonp";
-import { COLORS, MOBILE, clampTip, fmtP, since, tip, xDate, yPct, yPrice } from "../chartBase";
+import { COLORS, MOBILE, clampTip, fade, fmtP, since, tip, xDate, yPct, yPrice } from "../chartBase";
 import { Pct, useSort } from "../table";
 import Pull from "../pull";
 import { NQ_OVERNIGHT as NQ } from "../data/nq_data";
@@ -76,7 +76,7 @@ function nqRebase(item, live) {
 const NQ_URL =
   "https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20t=/GlobalFuturesService.getGlobalFuturesMinLine?symbol=NQ";
 
-function NqCard({ theme, tick }) {
+function NqCard({ tick }) {
   const box = useRef(null);
   const chart = useRef(null);
   // item 是 nq_data.js 里那条记录本身: nqRebase 原地改它的字段, 引用恒定, 不需要 ref/state
@@ -168,8 +168,8 @@ function NqCard({ theme, tick }) {
           lineStyle: { width: 2, color: C.blue },
           areaStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: "rgba(57,135,229,.25)" },
-              { offset: 1, color: "rgba(57,135,229,0)" },
+              { offset: 0, color: fade(C.blue, .25) },
+              { offset: 1, color: fade(C.blue, 0) },
             ]),
           },
           markLine: {
@@ -191,9 +191,9 @@ function NqCard({ theme, tick }) {
       m.dispose();
       chart.current = null;
     };
-    // render 每次渲染都是新函数, 放进依赖会无限重建; 换肤才需要重建图表
+    // render 每次渲染都是新函数, 放进依赖会无限重建; 图表只在挂载时建一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [theme]);
+  }, []);
 
   const refresh = (cb) =>
     jsonp(NQ_URL, () => {
@@ -542,7 +542,7 @@ function QTable({ rows, hl }) {
 const P_RANGES = [["全部", "all"], ["今年以来", "ytd"], ["近 1 年", "1"], ["近 2 年", "2"], ["近 3 年", "3"]];
 const PREM = QP.dates.map((_, i) => +((QP.close[i] / QP.nav[i] - 1) * 100).toFixed(2));
 
-function PremCard({ theme }) {
+function PremCard() {
   const box = useRef(null);
   const [range, setRange] = useState("1"); // 默认近 1 年
   const S = useMemo(() => {
@@ -589,7 +589,7 @@ function PremCard({ theme }) {
       removeEventListener("resize", onResize);
       m.dispose();
     };
-  }, [S, theme]);
+  }, [S]);
 
   const n = PREM.length - 1;
   return (
@@ -709,15 +709,14 @@ function PerfCard() {
 // 下拉刷新只重取实时那几路(NQ 分时 + 两张快照表), 不整页 reload: 基准 K 线(useBase)盘中
 // 不变, 一次 24 个请求还容易撞 fqkline 限流; 溢价走势是静态文件, 盘中没新点。
 export default function QdiiPage() {
-  const { theme } = useTheme();
   const [tick, setTick] = useState(0);
   const pull = useCallback(() => setTick((t) => t + 1), []);
   return (
     <div className="wrap">
       <Pull onPull={pull} />
-      <NqCard theme={theme} tick={tick} />
+      <NqCard tick={tick} />
       <CnTable tick={tick} />
-      <PremCard theme={theme} />
+      <PremCard />
       <UsTable tick={tick} />
       <PerfCard />
     </div>

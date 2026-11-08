@@ -1,11 +1,16 @@
-// 股票几页共用的 ECharts 零件。色值一律由调用方先 vars(...COLORS) 现读再传进来 ——
-// 颜色在 setOption 时就烤进图里了，换肤只能 dispose 重建（见 theme.jsx）。
+// 股票几页共用的 ECharts 零件。色值一律由调用方先 vars(...COLORS) 读 theme.css 再传进来（见 theme.js）。
 export const MOBILE = matchMedia("(max-width:680px)").matches;
 
 export const COLORS = [
   "up", "down", "blue", "avg", "ink", "ink2", "muted",
   "grid", "baseline", "surface", "tip", "tiplabel",
 ];
+
+/** "#2563eb" + 透明度 -> rgba(...)。面积图渐变跟着 --blue 走, 不写死 rgba */
+export const fade = (hex, a) => {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+};
 
 export const fmtP = (v, d = 2) => (v >= 0 ? "+" : "") + v.toFixed(d) + "%";
 

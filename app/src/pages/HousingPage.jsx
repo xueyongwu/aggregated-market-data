@@ -9,7 +9,6 @@ import {
   getMultiYearChangeCounts,
 } from "../data/housingData";
 import { chartColors, titleStyle, axisCommon, tooltipCommon } from "../chartTheme";
-import { useTheme } from "../theme";
 import "../housing.css";
 
 const HOUSE_TYPES = [
@@ -37,7 +36,6 @@ function CityListKpi({ label, cities, weak }) {
 }
 
 function HousingPage() {
-  const { theme } = useTheme();
   const multiYearChartRef = useRef(null);
   const multiYearChartInstance = useRef(null);
   const yearChartRef = useRef(null);
@@ -208,7 +206,7 @@ function HousingPage() {
       window.removeEventListener("resize", handleResize);
       multiYearChartInstance.current?.dispose();
     };
-  }, [multiYearData, houseType, theme]);
+  }, [multiYearData, houseType]);
 
   // 选中年份的月度折线图，点击数据点高亮下方表格对应月份
   useEffect(() => {
@@ -288,7 +286,7 @@ function HousingPage() {
       window.removeEventListener("resize", handleResize);
       yearChartInstance.current?.dispose();
     };
-  }, [yearChartData, months, selectedYear, theme]);
+  }, [yearChartData, months, selectedYear]);
 
   return (
     <div className="page">

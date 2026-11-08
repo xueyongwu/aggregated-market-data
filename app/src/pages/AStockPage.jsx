@@ -1,8 +1,8 @@
 // A股：指数今年以来涨跌幅排名 + 全市场成交额 + 两融余额(后两张各带一排区间筛选)。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { echarts } from "../echarts";
-import { useTheme, vars } from "../theme";
-import { COLORS, MOBILE, fmtP, since, tip, xDate } from "../chartBase";
+import { vars } from "../theme";
+import { COLORS, MOBILE, fade, fmtP, since, tip, xDate } from "../chartBase";
 import { INDEX_YTD as IX } from "../data/idx_data";
 import { TURNOVER } from "../data/turnover_data";
 import { MARGIN } from "../data/margin_data";
@@ -32,7 +32,7 @@ const MA20 = (() => {
 
 // 宽基/特色/港股 15 个指数今年以来涨跌幅排名条形图(数据 index_perf.py -> idx_data.js)。
 // 原是独立的「宽基指数」页(IndexPage, 已删), 2026-11 挪到这页最上面。
-function IdxCard({ theme }) {
+function IdxCard() {
   const box = useRef(null);
 
   useEffect(() => {
@@ -115,7 +115,7 @@ function IdxCard({ theme }) {
       removeEventListener("resize", onResize);
       m.dispose();
     };
-  }, [theme]);
+  }, []);
 
   if (!IX?.items?.length) return null;
   return (
@@ -129,7 +129,6 @@ function IdxCard({ theme }) {
 }
 
 export default function AStockPage() {
-  const { theme } = useTheme();
   const amtRef = useRef(null);
   const mgnRef = useRef(null);
   const [range, setRange] = useState("ytd");
@@ -184,8 +183,8 @@ export default function AStockPage() {
           lineStyle: { width: 1, color: C.blue },
           areaStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: "rgba(57,135,229,.28)" },
-              { offset: 1, color: "rgba(57,135,229,0)" },
+              { offset: 0, color: fade(C.blue, .28) },
+              { offset: 1, color: fade(C.blue, 0) },
             ]),
           },
         },
@@ -199,7 +198,7 @@ export default function AStockPage() {
       removeEventListener("resize", onResize);
       m.dispose();
     };
-  }, [A, theme]);
+  }, [A]);
 
   // 两融: 左轴余额右轴占比都从 0 起: 两轴各自 scale 会把「余额创
   // 新高但占比没跟上」这唯一值钱的信息抹平; 右轴钉死 5%(2015 峰值 4.70%)让两条线错开,
@@ -253,8 +252,8 @@ export default function AStockPage() {
           lineStyle: { width: 1, color: C.blue },
           areaStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: "rgba(57,135,229,.28)" },
-              { offset: 1, color: "rgba(57,135,229,0)" },
+              { offset: 0, color: fade(C.blue, .28) },
+              { offset: 1, color: fade(C.blue, 0) },
             ]),
           },
         },
@@ -268,11 +267,11 @@ export default function AStockPage() {
       removeEventListener("resize", onResize);
       m.dispose();
     };
-  }, [M, theme]);
+  }, [M]);
 
   return (
     <div className="wrap">
-      <IdxCard theme={theme} />
+      <IdxCard />
       <div className="card">
         <h2>
           全市场成交额 <span className="dot">

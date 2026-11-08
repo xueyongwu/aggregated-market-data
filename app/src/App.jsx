@@ -4,7 +4,6 @@
 // 导航两种形态，同一份 PAGES 渲染两遍（见 theme.css）：宽屏顶部一条横向 pill，
 // 窄屏收成汉堡 + 左侧抽屉 —— 5 项在 375px 上横排必然溢出成横向滚动条。
 import { lazy, Suspense, useEffect, useState } from "react";
-import { ThemeProvider, ThemeToggle } from "./theme";
 import "./theme.css";
 
 // 每页都把自己那份数据 import 进来（房价 70KB…），静态引入会让几份
@@ -45,7 +44,7 @@ export default function App() {
   ));
 
   return (
-    <ThemeProvider>
+    <>
       <nav className="nav">
         <div className="nav-in">
           <button
@@ -60,8 +59,6 @@ export default function App() {
           </button>
           <span className="nav-now">{page.nav}</span>
           <div className="nav-bar">{links}</div>
-          <span className="sp" />
-          <ThemeToggle />
         </div>
       </nav>
 
@@ -75,6 +72,6 @@ export default function App() {
       <Suspense fallback={<div className="miss">加载中…</div>}>
         <page.El key={page.id} />
       </Suspense>
-    </ThemeProvider>
+    </>
   );
 }

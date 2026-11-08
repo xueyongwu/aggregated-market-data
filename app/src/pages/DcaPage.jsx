@@ -6,7 +6,7 @@
 // 曾经按移动加权平均算(均价 1.9539 + 已实现 7,229.02)，两个数都跟 App 对不上，撤了。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { echarts } from "../echarts";
-import { useTheme, vars } from "../theme";
+import { vars } from "../theme";
 import { aOpen, jsonp, poll } from "../jsonp";
 import { COLORS, MOBILE, fmtP, tip, xDate, yPrice } from "../chartBase";
 import { DCA } from "../data/dca_data";
@@ -145,7 +145,6 @@ function dayPnl(rows, shares, d, p, prev) {
 }
 
 export default function DcaPage() {
-  const { theme } = useTheme();
   const box = useRef(null);
   const chart = useRef(null);
   const V = useMemo(() => calc(DCA.trades), []);
@@ -229,12 +228,12 @@ export default function DcaPage() {
       chart.current = null;
       m.dispose();
     };
-  }, [V, theme]);
+  }, [V]);
 
-  // 现价变了只重设那条虚线。theme 在依赖里是因为上面重建后图里没有 markLine, 要补回来。
+  // 现价变了只重设那条虚线。V 在依赖里是因为上面重建后图里没有 markLine, 要补回来。
   useEffect(() => {
     chart.current?.setOption({ series: [{ markLine: markLine(vars(...COLORS), now) }] });
-  }, [now, theme]);
+  }, [V, now]);
 
   return (
     <div className="wrap dca">

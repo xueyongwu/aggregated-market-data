@@ -88,9 +88,9 @@ cd app && pnpm lint     # eslint(当前零 error，别放宽)
 2. `stock/index_perf.py` / `stock/qdii_premium.py` 读回自己上次的输出、`stock/nq_overnight.py` 的 `trading_days()`
    读 `turnover_data.js`，都按 `t.index("=")`…`t.rindex(";")` 切，`export const X = ` 照样命中第一个 `=`。**别在文件开头加带 `=` 或 `;` 的注释。**
 
-**深浅两套皮是全站的，图表配色必须在 effect 里现读。** ECharts 的颜色在 `setOption` 时就烤进去了，
-换肤只能 dispose 重建 —— 所以每个建图的 `useEffect` 都把 `theme` 放进依赖数组，用 `theme.jsx` 的
-`vars()` / `chartTheme.js` 的 `chartColors()` 现读 CSS 变量。写死色值的图表换肤后不会变。
+**只有浅色一套皮（2026-11 删了深色模式和切换开关），色值只在 `theme.css` 的 `:root` 定义一份。**
+ECharts 读不到 CSS 变量，建图的 effect 里用 `theme.js` 的 `vars()` / `chartTheme.js` 的 `chartColors()`
+现读再传进 option，别在图表代码里写死色值（面积渐变用 `chartBase.js` 的 `fade(C.blue, a)`）。
 
 **`theme.css` 里同一个色值挂了两套变量名**（`--ink2` 和 `--ink-2`、`--grid` 和 `--rule`）：
 股票三页和房价页各自的 CSS 里有几十处引用，给别名比改两百处引用便宜。新代码统一用无连字符那套。
@@ -108,7 +108,7 @@ cd app && pnpm lint     # eslint(当前零 error，别放宽)
 
 **页面按 `lazy()` 切包**：每页各自 import 自己那份数据（房价 70KB…），静态引入会全挤进首屏 chunk。
 
-**导航的窄屏断点是 860px，不是别处那个 680px。** 这个数是 7 个标签时定的：横排要 ~780px，加上深浅色开关和
+**导航的窄屏断点是 860px，不是别处那个 680px。** 这个数是 7 个标签时定的：横排要 ~780px，加上当时的深浅色开关和
 左右内边距，815 以下横条就把页面顶出横向滚动条了。2026-11 先后删掉「美股纳指100」「宽基指数」后剩 5 项（6 项时这组数是 780/735），
 断点没跟着收，留着余量——所以 860 以下换成汉堡 + 左侧抽屉
 （`App.jsx` 里两处渲染的是同一份 `<a>` 列表）。加/改导航项要重测这个宽度。
