@@ -1,1 +1,1 @@
-export const NDX_PE = {"date": "2026-11-06", "pe": 24.86, "pct": 61.7, "since": "2006-11", "n": 240};
+export const NDX_PE = {"date": "2026-11-09", "pe": 29.45, "pct": 76.7, "since": "2006-11", "n": 240};
